@@ -1,0 +1,210 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model users {
+  id                   String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  firebase_uid         String                 @unique
+  email                String                 @unique
+  full_name            String
+  avatar_url           String?
+  role                 String
+  is_active            Boolean?               @default(true)
+  created_at           DateTime?              @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime?              @default(now()) @db.Timestamptz(6)
+  audit_logs           audit_logs[]
+  centros_terapeuticos centros_terapeuticos[]
+  conversations_as_a   conversations[]        @relation("conv_participant_a")
+  conversations_as_b   conversations[]        @relation("conv_participant_b")
+  favorites            favorites[]
+  professionals        professionals[]
+  reviews              reviews[]
+  saved_searches       saved_searches[]
+  students             students[]
+}
+
+model students {
+  id               String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id          String?                   @db.Uuid
+  disability_types String[]
+  school_name      String?
+  school_zone      String?
+  needs_companion  Boolean?                  @default(false)
+  needs_nurse      Boolean?                  @default(false)
+  description      String?
+  location         Unsupported("geography")?
+  address          String?
+  neighborhood     String?
+  city             String?
+  province         String?
+  contact_phone    String?
+  is_visible       Boolean?                  @default(true)
+  created_at       DateTime?                 @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime?                 @default(now()) @db.Timestamptz(6)
+  user             users?                    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([disability_types], map: "idx_students_disability", type: Gin)
+  @@index([location], map: "idx_students_location", type: Gist)
+}
+
+model professionals {
+  id               String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id          String?                   @db.Uuid
+  profession       String
+  license_number   String?
+  license_doc_url  String?
+  is_verified      Boolean?                  @default(false)
+  bio              String?
+  specialties      String[]
+  work_zones       String[]
+  location         Unsupported("geography")?
+  address          String?
+  neighborhood     String?
+  city             String?
+  province         String?
+  contact_phone    String?
+  contact_whatsapp String?
+  availability     Json?
+  is_available     Boolean?                  @default(true)
+  created_at       DateTime?                 @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime?                 @default(now()) @db.Timestamptz(6)
+  user             users?                    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([location], map: "idx_professionals_location", type: Gist)
+  @@index([specialties], map: "idx_professionals_spec", type: Gin)
+}
+
+model escuelas_especiales {
+  id                String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  cueanexo          String                    @unique
+  nombre            String
+  domicilio         String?
+  localidad         String
+  jurisdiccion      String
+  departamento      String?
+  codigo_postal     String?
+  location          Unsupported("geography")?
+  sector            String
+  ambito            String
+  nivel_temprana    Boolean?                  @default(false)
+  nivel_jardin      Boolean?                  @default(false)
+  nivel_primario    Boolean?                  @default(false)
+  nivel_secundario  Boolean?                  @default(false)
+  nivel_integracion Boolean?                  @default(false)
+  telefono          String?
+  email             String?
+  is_active         Boolean?                  @default(true)
+  data_source       String?                   @default("padron_nacional_2024")
+  created_at        DateTime?                 @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime?                 @default(now()) @db.Timestamptz(6)
+
+  @@index([nivel_integracion], map: "idx_escuelas_integracion")
+  @@index([jurisdiccion], map: "idx_escuelas_jurisdiccion")
+  @@index([localidad], map: "idx_escuelas_localidad")
+  @@index([location], map: "idx_escuelas_location", type: Gist)
+  @@index([nivel_primario], map: "idx_escuelas_primario")
+  @@index([sector], map: "idx_escuelas_sector")
+  @@index([nivel_secundario], map: "idx_escuelas_secundario")
+}
+
+model centros_terapeuticos {
+  id                 String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  owner_user_id      String?                   @db.Uuid
+  nombre             String
+  tipo               String
+  descripcion        String?
+  servicios          String[]
+  tipos_discapacidad String[]
+  domicilio          String
+  barrio             String?
+  localidad          String
+  provincia          String
+  location           Unsupported("geography")?
+  telefono           String?
+  email              String?
+  whatsapp           String?
+  website            String?
+  logo_url           String?
+  fotos              String[]
+  is_verified        Boolean?                  @default(false)
+  is_active          Boolean?                  @default(true)
+  created_at         DateTime?                 @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime?                 @default(now()) @db.Timestamptz(6)
+  owner              users?                    @relation(fields: [owner_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([tipos_discapacidad], map: "idx_centros_discapacidad", type: Gin)
+  @@index([location], map: "idx_centros_location", type: Gist)
+  @@index([servicios], map: "idx_centros_servicios", type: Gin)
+  @@index([tipo], map: "idx_centros_tipo")
+}
+
+model conversations {
+  id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  participant_a   String?   @db.Uuid
+  participant_b   String?   @db.Uuid
+  last_message    String?
+  last_message_at DateTime? @db.Timestamptz(6)
+  created_at      DateTime? @default(now()) @db.Timestamptz(6)
+  user_a          users?    @relation("conv_participant_a", fields: [participant_a], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user_b          users?    @relation("conv_participant_b", fields: [participant_b], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([participant_a, participant_b])
+}
+
+model saved_searches {
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id     String?   @db.Uuid
+  filters     Json
+  alert_email Boolean?  @default(false)
+  alert_push  Boolean?  @default(false)
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  user        users?    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model favorites {
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id     String?   @db.Uuid
+  target_type String?
+  target_id   String    @db.Uuid
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  user        users?    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, target_type, target_id])
+}
+
+model reviews {
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  reviewer_id String?   @db.Uuid
+  target_type String?
+  target_id   String?   @db.Uuid
+  rating      Int?      @db.SmallInt
+  comment     String?
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  reviewer    users?    @relation(fields: [reviewer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model audit_logs {
+  id          BigInt    @id @default(autoincrement())
+  user_id     String?   @db.Uuid
+  action      String
+  entity_type String?
+  entity_id   String?   @db.Uuid
+  metadata    Json?
+  ip_address  String?   @db.Inet
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  user        users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model spatial_ref_sys {
+  srid      Int     @id
+  auth_name String? @db.VarChar(256)
+  auth_srid Int?
+  srtext    String? @db.VarChar(2048)
+  proj4text String? @db.VarChar(2048)
+}
