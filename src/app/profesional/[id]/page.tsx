@@ -2,11 +2,16 @@ import { Metadata } from 'next';
 import { prisma } from '@/lib/prisma';
 import { notFound } from 'next/navigation';
 import { ContactButton } from '@/components/ContactButton';
-import { MapPin, Phone, CheckCircle, Star, Briefcase, Calendar } from 'lucide-react';
+import { ShareButton } from '@/components/ShareButton';
+import { StarDisplay, ReviewModal } from '@/components/ReviewStars';
+import { MapPin, CheckCircle, Briefcase, Calendar } from 'lucide-react';
+import { ReviewsSection } from '@/components/ReviewsSection';
+import { BackHeader } from '@/components/BackHeader';
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const prof = await prisma.professionals.findUnique({
-    where: { id: params.id },
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const prof = await prisma.professionals.findFirst({
+    where: { id },
     include: { user: true }
   });
   if (!prof) return { title: 'Profesional no encontrado' };
@@ -19,15 +24,19 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
     };
 }
 
-export default async function ProfessionalProfilePage({ params }: { params: { id: string } }) {
-  const prof = await prisma.professionals.findUnique({
-    where: { id: params.id, is_available: true },
+export default async function ProfessionalProfilePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+
+  const prof = await prisma.professionals.findFirst({
+    where: { id },
     include: {
       user: { select: { id: true, full_name: true, avatar_url: true, email: true } }
     }
   });
 
   if (!prof) notFound();
+
+  const profileUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/profesional/${id}`;
 
   const PROFESSION_LABELS: Record<string, string> = {
     acompañante_terapeutico: 'Acompañante Terapéutico',
@@ -38,8 +47,41 @@ export default async function ProfessionalProfilePage({ params }: { params: { id
     otro: 'Profesional',
   };
 
+  const profLabel = PROFESSION_LABELS[prof.profession] ?? prof.profession;
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Person',
+    name: prof.user?.full_name,
+    jobTitle: profLabel,
+    description: prof.bio,
+    address: {
+      '@type': 'PostalAddress',
+      addressLocality: prof.city,
+      addressRegion: prof.province,
+      addressCountry: 'AR',
+    },
+    ...(prof.contact_phone ? { telephone: prof.contact_phone } : {}),
+    url: profileUrl,
+  };
+
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gray-50">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <BackHeader
+        title={prof.user?.full_name ?? 'Profesional'}
+        subtitle={profLabel}
+        fallback="/dashboard/alumno"
+        rightSlot={
+          <ShareButton
+            url={profileUrl}
+            title={prof.user?.full_name ?? 'Profesional'}
+            text={`Mirá el perfil de ${prof.user?.full_name} en Discapp`}
+          />
+        }
+      />
+
+    <div className="max-w-3xl mx-auto px-4 py-8" id="main-content">
       {/* Header del perfil */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6 shadow-sm">
         <div className="flex items-start gap-5">
@@ -125,7 +167,7 @@ export default async function ProfessionalProfilePage({ params }: { params: { id
 
       {/* Disponibilidad */}
       {prof.availability && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-4 shadow-sm">
           <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
             <Calendar className="w-4 h-4 text-indigo-500" /> Disponibilidad
           </h2>
@@ -141,6 +183,11 @@ export default async function ProfessionalProfilePage({ params }: { params: { id
           </div>
         </div>
       )}
+
+      {/* Reseñas */}
+      <ReviewsSection targetType="professional" targetId={id} targetName={prof.user?.full_name ?? ''} />
+
+    </div>
     </div>
   );
 }

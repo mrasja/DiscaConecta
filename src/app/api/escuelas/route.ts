@@ -11,7 +11,8 @@ export async function GET(request: NextRequest) {
     const radiusKm = parseFloat(searchParams.get('radiusKm') || '25');
     const sector   = searchParams.get('sector');
     const nivel    = searchParams.get('nivel');
- 
+    const nombre   = searchParams.get('nombre');
+
     const escuelas = await prisma.$queryRaw<any[]>`
       SELECT
         e.id, e.cueanexo, e.nombre, e.domicilio, e.localidad,
@@ -31,6 +32,7 @@ export async function GET(request: NextRequest) {
       WHERE e.is_active = TRUE
         AND (${city}::text IS NULL OR e.localidad ILIKE ${`%${city}%`})
         AND (${province}::text IS NULL OR e.jurisdiccion ILIKE ${`%${province}%`})
+        AND (${nombre}::text IS NULL OR e.nombre ILIKE ${`%${nombre}%`})
         AND (${sector}::text IS NULL OR e.sector = ${sector})
         AND (
           ${nivel}::text IS NULL OR

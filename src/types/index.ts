@@ -55,7 +55,9 @@ export interface Professional {
   contactWhatsapp?: string;
   availability?: Record<string, string[]>;
   isAvailable: boolean;
-  location_text?: string; 
+  location_text?: string;
+  avg_rating?: number;
+  review_count?: number;
 }
 
 export interface Center {
@@ -91,8 +93,12 @@ export interface SearchFilters {
   needsNurse?: boolean;
   profession?: ProfessionType;
   centerType?: CenterType;
-  isVerified?: boolean;
+  isVerifiedOnly?: boolean;
+  sector?: 'Estatal' | 'Privado';
+  nivel?: 'temprana' | 'jardin' | 'primario' | 'secundario' | 'integracion';
   radiusKm?: number;
   lat?: number;
   lng?: number;
+  nombreProfesional?: string;
+  obraSocial?: string;
 }

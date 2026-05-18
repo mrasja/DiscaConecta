@@ -14,6 +14,7 @@ model users {
   full_name            String
   avatar_url           String?
   role                 String
+  fcm_token            String?
   is_active            Boolean?               @default(true)
   created_at           DateTime?              @default(now()) @db.Timestamptz(6)
   updated_at           DateTime?              @default(now()) @db.Timestamptz(6)
@@ -69,6 +70,7 @@ model professionals {
   province         String?
   contact_phone    String?
   contact_whatsapp String?
+  obras_sociales   String[]
   availability     Json?
   is_available     Boolean?                  @default(true)
   created_at       DateTime?                 @default(now()) @db.Timestamptz(6)

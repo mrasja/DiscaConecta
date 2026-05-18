@@ -1,78 +1,95 @@
-import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import type { SearchFilters } from '@/types';
 
+const PAGE_SIZE = 20;
+
+function buildParams(filters: SearchFilters, extra?: Record<string, string>) {
+  const p = new URLSearchParams();
+  if (filters.city)     p.set('city',     filters.city);
+  if (filters.province) p.set('province', filters.province);
+  if (filters.lat)      p.set('lat',      String(filters.lat));
+  if (filters.lng)      p.set('lng',      String(filters.lng));
+  if (filters.radiusKm) p.set('radiusKm', String(filters.radiusKm));
+  if (extra) Object.entries(extra).forEach(([k, v]) => v && p.set(k, v));
+  return p;
+}
+
+// ── Profesionales con paginación infinita ──────────────────────
 export const useProfessionals = (filters: SearchFilters) =>
-  useQuery({
+  useInfiniteQuery({
     queryKey: ['professionals', filters],
-    queryFn: () => api.searchProfessionals(filters),
-    staleTime: 5 * 60 * 1000, // 5 minutos cache
+    queryFn: async ({ pageParam = 0 }) => {
+      const p = buildParams(filters, {
+        disabilityType:    filters.disabilityType    || '',
+        profession:        filters.profession        || '',
+        isVerifiedOnly:    filters.isVerifiedOnly ? 'true' : '',
+        nombre:            filters.nombreProfesional || '',
+        obraSocial:        filters.obraSocial        || '',
+        limit:             String(PAGE_SIZE),
+        offset:            String(pageParam),
+      });
+      const res = await fetch(`/api/professionals?${p}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage: any[], allPages) =>
+      lastPage.length === PAGE_SIZE ? allPages.length * PAGE_SIZE : undefined,
+    staleTime: 5 * 60 * 1000,
     enabled: !!filters.city || !!filters.lat,
+  });
+
+// ── Centros con paginación infinita ───────────────────────────
+export const useCenters = (filters: SearchFilters) =>
+  useInfiniteQuery({
+    queryKey: ['centros', filters],
+    queryFn: async ({ pageParam = 0 }) => {
+      const p = buildParams(filters, {
+        tipo:           filters.centerType   || '',
+        isVerifiedOnly: filters.isVerifiedOnly ? 'true' : '',
+        limit:          String(PAGE_SIZE),
+        offset:         String(pageParam),
+      });
+      const res = await fetch(`/api/centros?${p}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage: any[], allPages) =>
+      lastPage.length === PAGE_SIZE ? allPages.length * PAGE_SIZE : undefined,
+    staleTime: 5 * 60 * 1000,
+    enabled: true,
+  });
+
+export const useCentrosTerapeuticos = useCenters;
+
+// ── Escuelas (sin paginar — dataset estático grande) ──────────
+export const useEscuelas = (filters: SearchFilters) =>
+  useQuery({
+    queryKey: ['escuelas', filters],
+    queryFn: async () => {
+      const p = buildParams(filters, {
+        nombre: filters.school || '',
+        sector: filters.sector || '',
+        nivel:  filters.nivel  || '',
+      });
+      const res = await fetch(`/api/escuelas?${p}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 10 * 60 * 1000,
+    enabled: true,
   });
 
 export const useStudents = (filters: SearchFilters) =>
   useQuery({
     queryKey: ['students', filters],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (filters.city)     params.set('city', filters.city || '');
-      if (filters.province) params.set('province', filters.province || '');
-      if (filters.lat)      params.set('lat', String(filters.lat || 0));
-      if (filters.lng)      params.set('lng', String(filters.lng || 0));
-      if (filters.radiusKm) params.set('radiusKm', String(filters.radiusKm || 25));
-      const res = await fetch(`/api/students?${params}`);
+      const p = buildParams(filters);
+      const res = await fetch(`/api/students?${p}`);
       if (!res.ok) return [];
       return res.json();
     },
     staleTime: 5 * 60 * 1000,
-    enabled: true,
-  });
-  
-export const useCenters = (filters: SearchFilters) =>
-  useQuery({
-    queryKey: ['centros', filters],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (filters.city)     params.set('city', filters.city);
-      if (filters.province) params.set('province', filters.province || '');
-      if (filters.lat)      params.set('lat', String(filters.lat));
-      if (filters.lng)      params.set('lng', String(filters.lng));
-      if (filters.radiusKm) params.set('radiusKm', String(filters.radiusKm));
-      
-      // ← CAMBIADO de /api/centers a /api/centros
-      const res = await fetch(`/api/centros?${params}`);
-      if (!res.ok) return [];
-      return res.json();
-    },
-    staleTime: 5 * 60 * 1000,
-    enabled: true,
-  });
-
-
-export const useCentrosTerapeuticos = (filters: SearchFilters) =>
-  useQuery({
-    queryKey: ['centros', filters],
-    queryFn: () => fetch(
-      `/api/centros?${new URLSearchParams(filters as any)}`
-    ).then(r => r.json()),
-    staleTime: 5 * 60 * 1000,
-    enabled: true,
-  });
-
-export const useEscuelas = (filters: SearchFilters) =>
-  useQuery({
-    queryKey: ['escuelas', filters],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (filters.city)     params.set('city', filters.city);
-      if (filters.province) params.set('province', filters.province || '');
-      if (filters.lat)      params.set('lat', String(filters.lat));
-      if (filters.lng)      params.set('lng', String(filters.lng));
-      if (filters.radiusKm) params.set('radiusKm', String(filters.radiusKm));
-      const res = await fetch(`/api/escuelas?${params}`);
-      if (!res.ok) return [];
-      return res.json();
-    },
-    staleTime: 10 * 60 * 1000,
     enabled: true,
   });

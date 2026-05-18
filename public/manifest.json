@@ -1,0 +1,28 @@
+{
+  "name": "Discapp",
+  "short_name": "Discapp",
+  "description": "Conectando personas con discapacidad con profesionales y centros especializados",
+  "start_url": "/dashboard/alumno",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "lang": "es",
+  "categories": ["health", "education", "social"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Buscar profesionales",
+      "url": "/dashboard/alumno",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Mis mensajes",
+      "url": "/dashboard/mensajes",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

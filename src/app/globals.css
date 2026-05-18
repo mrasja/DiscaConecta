@@ -3,6 +3,21 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --card:        #ffffff;
+  --card-border: #e5e7eb;
+  --surface:     #f9fafb;
+  --muted:       #6b7280;
+  --accent:      #4f46e5;
+}
+
+.dark {
+  --background: #0f0f0f;
+  --foreground: #f0f0f0;
+  --card:        #1a1a1a;
+  --card-border: #2e2e2e;
+  --surface:     #141414;
+  --muted:       #9ca3af;
+  --accent:      #818cf8;
 }
 
 @theme inline {
@@ -12,15 +27,135 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Dark mode — superficies principales */
+.dark body                          { background: var(--background); color: var(--foreground); }
+.dark .bg-white                     { background-color: var(--card) !important; }
+.dark .bg-gray-50                   { background-color: var(--surface) !important; }
+.dark .bg-gray-100                  { background-color: #262626 !important; }
+.dark .border-gray-100,
+.dark .border-gray-200              { border-color: var(--card-border) !important; }
+.dark .text-gray-900                { color: #f0f0f0 !important; }
+.dark .text-gray-700                { color: #d1d5db !important; }
+.dark .text-gray-600                { color: #9ca3af !important; }
+.dark .text-gray-500                { color: #6b7280 !important; }
+.dark .text-gray-400                { color: #4b5563 !important; }
+.dark input, .dark select, .dark textarea {
+  background-color: #1a1a1a !important;
+  border-color: #2e2e2e !important;
+  color: #f0f0f0 !important;
+}
+.dark input::placeholder,
+.dark textarea::placeholder         { color: #6b7280 !important; }
+
+/* ── Accesibilidad global ────────────────────────────── */
+
+/* Anillo de foco visible y claro para navegación por teclado */
+:focus-visible {
+  outline: 3px solid #4f46e5;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Quitar el foco para click/touch (solo mostrar con teclado) */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Skip link — oculto hasta recibir foco (lectores de pantalla y teclado) */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 0;
+  background: #4f46e5;
+  color: white;
+  padding: 12px 20px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  z-index: 9999;
+  text-decoration: none;
+  border-radius: 0 0 8px 0;
+}
+.skip-link:focus {
+  top: 0;
+  outline: 3px solid #facc15;
+  outline-offset: 2px;
+}
+
+/* Texto solo para lectores de pantalla (visualmente oculto) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Respeto por preferencia de movimiento reducido */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Tamaño mínimo de área clickeable para accesibilidad táctil (WCAG 2.5.5) */
+button, a, [role="button"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+/* Excepción para elementos decorativos pequeños dentro de contenedores más grandes */
+button.no-min, a.no-min {
+  min-height: unset;
+  min-width: unset;
+}
+
+/* ── Alto contraste ──────────────────────────────────── */
+html.hc body                            { background: #000 !important; color: #ffff00 !important; }
+html.hc .bg-white,
+html.hc .bg-gray-50,
+html.hc .bg-gray-100                   { background-color: #000 !important; }
+html.hc .text-gray-900,
+html.hc .text-gray-800,
+html.hc .text-gray-700                 { color: #ffff00 !important; }
+html.hc .text-gray-600,
+html.hc .text-gray-500,
+html.hc .text-gray-400,
+html.hc .text-gray-300                 { color: #ffffff !important; }
+html.hc .border-gray-200,
+html.hc .border-gray-100               { border-color: #ffff00 !important; }
+html.hc .bg-indigo-600                 { background-color: #ffff00 !important; }
+html.hc .text-white                    { color: #000 !important; }
+html.hc a, html.hc .text-indigo-600   { color: #00ffff !important; }
+html.hc input, html.hc select,
+html.hc textarea                       { background: #111 !important; color: #ffff00 !important; border-color: #ffff00 !important; }
+
+/* ── Tamaño de fuente ajustable ──────────────────────── */
+html[data-font="sm"] { font-size: 14px; }
+html[data-font="md"] { font-size: 16px; }
+html[data-font="lg"] { font-size: 19px; }
+
+/* ── Android / Capacitor ─────────────────────────────── */
+
+/* Prevenir zoom automático en iOS/Android al enfocar inputs (requiere font-size ≥ 16px) */
+input, select, textarea {
+  font-size: max(16px, 1em);
+}
+
+/* Safe area para barra de navegación inferior nativa (Android gestures / notch) */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.safe-top {
+  padding-top: env(safe-area-inset-top);
 }

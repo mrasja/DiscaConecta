@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(npm show *)",
+      "Bash(npx cap *)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\\\\bin\\\\keytool.exe\" -list -v -keystore \"$env:USERPROFILE\\\\.android\\\\debug.keystore\" -alias androiddebugkey -storepass android -keypass android 2>&1 | Select-String \"SHA1|SHA-1|Certificate\")",
+      "Bash(mkdir -p \"c:\\\\Users\\\\Admin\\\\Documents\\\\Aplicacion\\\\discapp\\\\src\\\\app\\\\centro\\\\[id]\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\Admin\\Documents\\Aplicacion\\discapp\\src\\app\\centro"
+    ]
+  }
+}

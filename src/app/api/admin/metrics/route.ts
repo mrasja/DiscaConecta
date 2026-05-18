@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyToken } from '@/lib/auth-server';
+import { verifyToken, isAdminUser } from '@/lib/auth-server';
 
 export async function GET(request: NextRequest) {
   try {
     const user = await verifyToken(request);
-    if (!user || user.role !== 'admin') {
+    if (!isAdminUser(user)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 

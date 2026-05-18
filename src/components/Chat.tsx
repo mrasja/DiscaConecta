@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useChat } from '@/hooks/useChat';
 import { useAuth } from '@/context/AuthContext';
 import { getConvId } from '@/lib/firebase-rtdb';
+import { showMessageNotification, notifyRecipient } from '@/components/NotificationPermission';
 
 interface ChatProps {
   convId: string;
@@ -11,7 +12,7 @@ interface ChatProps {
 }
 
 export function Chat({ convId, otherUser, onClose }: ChatProps) {
-  const { appUser, firebaseUser } = useAuth();
+  const { appUser, firebaseUser, token: authToken } = useAuth();
   const { messages, send, sending, bottomRef } = useChat(convId);
   const [input, setInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -22,6 +23,10 @@ export function Chat({ convId, otherUser, onClose }: ChatProps) {
     setInput('');
     await send(text, otherUser.id);
     inputRef.current?.focus();
+    if (authToken && appUser) {
+      const senderName = (appUser as any).full_name || (appUser as any).fullName || 'Alguien';
+      notifyRecipient(authToken, otherUser.id, senderName, text);
+    }
   };
 
   const handleKey = (e: React.KeyboardEvent) => {
@@ -29,6 +34,20 @@ export function Chat({ convId, otherUser, onClose }: ChatProps) {
   };
 
   const isMe = (senderId: string) => senderId === firebaseUser?.uid;
+
+  // Notificar cuando llega un mensaje del otro usuario
+  const prevCountRef = useRef(0);
+  useEffect(() => {
+    const prev = prevCountRef.current;
+    const curr = messages.length;
+    if (curr > prev && prev > 0) {
+      const last = messages[curr - 1];
+      if (!isMe(last.senderId)) {
+        showMessageNotification(otherUser.name, last.text);
+      }
+    }
+    prevCountRef.current = curr;
+  }, [messages]);
 
   return (
     <div className="flex flex-col h-full bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">

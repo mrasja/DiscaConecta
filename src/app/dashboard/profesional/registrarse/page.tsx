@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { BackHeader } from '@/components/BackHeader';
+
 
 const PROFESIONES = [
   { value: 'acompanante_terapeutico', label: 'Acompañante Terapéutico (AT)' },
@@ -89,15 +91,10 @@ export default function RegistrarseProPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-8">
-      <button
-        onClick={() => router.back()}
-        className="text-sm text-gray-500 hover:text-gray-700 mb-6 block"
-      >
-        ← Volver
-      </button>
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">
+      <BackHeader title="Registrar mi perfil" />
+      {/* <h1 className="text-2xl font-bold text-gray-900 mb-2">
         Registrarse como Profesional
-      </h1>
+      </h1> */}
       <p className="text-gray-500 mb-8">
         Completá tu perfil para aparecer en las búsquedas
       </p>

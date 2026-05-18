@@ -104,6 +104,19 @@ export async function markAsRead(convId: string, userId: string) {
   await set(unreadRef, 0);
 }
 
+// Disponibilidad en tiempo real del profesional (RTDB)
+export function setAvailabilityNow(professionalFirebaseUid: string, available: boolean) {
+  const availRef = ref(db, `availability/${professionalFirebaseUid}`);
+  return set(availRef, available ? Date.now() : null);
+}
+
+export function subscribeAvailability(professionalFirebaseUid: string, callback: (available: boolean) => void) {
+  const availRef = ref(db, `availability/${professionalFirebaseUid}`);
+  const handler  = (snap: any) => callback(snap.exists() && snap.val() !== null);
+  onValue(availRef, handler);
+  return () => off(availRef, 'value', handler);
+}
+
 // Total de no leídos
 export function subscribeTotalUnread(userId: string, callback: (total: number) => void) {
   const unreadRef = ref(db, `unreadCount/${userId}`);

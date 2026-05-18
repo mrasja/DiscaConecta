@@ -3,12 +3,20 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import { QueryClientProviderWrapper } from '@/components/QueryClientProvider';
+import { ServiceWorkerRegistrar } from '@/components/ServiceWorkerRegistrar';
+import { NotificationPermission } from '@/components/NotificationPermission';
+import { ToastProvider } from '@/context/ToastContext';
+import { OfflineBanner } from '@/components/OfflineBanner';
+import { Analytics } from '@vercel/analytics/react'; // activar después de: npm install
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Discapp',
   description: 'Conectando personas, transformando vidas',
+  manifest: '/manifest.json',
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Discapp' },
+  other: { 'mobile-web-app-capable': 'yes' },
 };
 
 export default function RootLayout({
@@ -18,12 +26,25 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#4f46e5" />
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+      </head>
       <body className={inter.className}>
+        <a href="#main-content" className="skip-link">Saltar al contenido principal</a>
+        <OfflineBanner />
+        <ServiceWorkerRegistrar />
+        <NotificationPermission />
         <QueryClientProviderWrapper>
           <AuthProvider>
-            {children}
+            <ToastProvider>
+              {children}
+            </ToastProvider>
           </AuthProvider>
         </QueryClientProviderWrapper>
+        <Analytics />
       </body>
     </html>
   );

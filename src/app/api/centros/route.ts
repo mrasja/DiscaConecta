@@ -9,15 +9,18 @@ export async function GET(request: NextRequest) {
     const lat       = parseFloat(searchParams.get('lat') || '0');
     const lng       = parseFloat(searchParams.get('lng') || '0');
     const radiusKm  = parseFloat(searchParams.get('radiusKm') || '25');
-    const tipo      = searchParams.get('tipo');
- 
+    const tipo           = searchParams.get('tipo');
+    const isVerifiedOnly = searchParams.get('isVerifiedOnly') === 'true';
+    const limit          = Math.min(parseInt(searchParams.get('limit') || '20'), 50);
+    const offset         = parseInt(searchParams.get('offset') || '0');
+
     const centros = await prisma.$queryRaw<any[]>`
       SELECT
         c.id, c.nombre, c.tipo, c.descripcion,
         c.servicios, c.tipos_discapacidad,
         c.domicilio, c.barrio, c.localidad, c.provincia,
         c.telefono, c.email, c.whatsapp, c.website,
-        c.logo_url, c.fotos, c.is_verified, 
+        c.logo_url, c.fotos, c.is_verified,
         ST_AsText(c.location) AS location_text,
         CASE WHEN ${lat} != 0 AND c.location IS NOT NULL THEN
           ROUND((ST_Distance(
@@ -30,6 +33,7 @@ export async function GET(request: NextRequest) {
         AND (${city}::text IS NULL OR c.localidad ILIKE ${`%${city}%`})
         AND (${province}::text IS NULL OR c.provincia ILIKE ${`%${province}%`})
         AND (${tipo}::text IS NULL OR c.tipo = ${tipo})
+        AND (${isVerifiedOnly} = FALSE OR c.is_verified = TRUE)
         AND (${lat} = 0 OR c.location IS NULL OR
              ST_DWithin(
                c.location::geography,
@@ -37,7 +41,7 @@ export async function GET(request: NextRequest) {
                ${radiusKm * 1000}
              ))
       ORDER BY distancia_km ASC NULLS LAST, c.is_verified DESC
-      LIMIT 100
+      LIMIT ${limit} OFFSET ${offset}
     `;
  
     return NextResponse.json(centros);
@@ -52,12 +56,19 @@ export async function POST(request: NextRequest) {
     const { verifyToken } = await import('@/lib/auth-server');
     const user = await verifyToken(request);
     if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
- 
+
+    const existing = await prisma.centros_terapeuticos.findFirst({
+      where: { owner_user_id: user.id },
+    });
+    if (existing) {
+      return NextResponse.json({ error: 'Ya tenés un centro registrado' }, { status: 400 });
+    }
+
     const body = await request.json();
- 
+
     const centro = await prisma.centros_terapeuticos.create({
       data: {
-        owner_user_id:      user.id,
+        owner_user_id: user.id,
         nombre:             body.nombre,
         tipo:               body.tipo || 'centro_terapeutico',
         descripcion:        body.descripcion,
