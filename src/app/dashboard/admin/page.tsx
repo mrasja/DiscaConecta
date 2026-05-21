@@ -305,33 +305,62 @@ export default function AdminDashboard() {
             )}
             {professionals.map((p: any) => (
               <div key={p.id}
-                className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4">
-                <div className="w-11 h-11 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                  <span className="text-indigo-600 font-bold text-lg">
-                    {(p.user?.full_name || 'P')[0].toUpperCase()}
-                  </span>
+                className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                <div className="flex items-center gap-4 mb-3">
+                  <div className="w-11 h-11 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-indigo-600 font-bold text-lg">
+                      {(p.user?.full_name || 'P')[0].toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900">{p.user?.full_name}</p>
+                    <p className="text-xs text-gray-400">{p.user?.email}</p>
+                    <p className="text-xs text-indigo-600 capitalize mt-0.5">
+                      {p.profession?.replace(/_/g, ' ')}
+                      {p.license_number && <span className="text-gray-400"> · Mat. {p.license_number}</span>}
+                    </p>
+                    {(p.city || p.province) && (
+                      <p className="text-xs text-gray-400">{[p.city, p.province].filter(Boolean).join(', ')}</p>
+                    )}
+                    <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium
+                      ${p.verification_status === 'documentos_enviados' ? 'bg-amber-50 text-amber-700'
+                      : p.verification_status === 'aprobado'            ? 'bg-green-50 text-green-700'
+                      : 'bg-gray-100 text-gray-500'}`}>
+                      {p.verification_status === 'documentos_enviados' ? '📄 Docs enviados'
+                      : p.verification_status === 'aprobado'            ? '✓ Aprobado'
+                      : 'Sin documentos'}
+                    </span>
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <button onClick={() => verifyProfessional(p.id, true)}
+                      className="px-4 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition-colors">
+                      Aprobar
+                    </button>
+                    <button onClick={() => verifyProfessional(p.id, false)}
+                      className="px-4 py-2 bg-gray-100 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-colors">
+                      Rechazar
+                    </button>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900">{p.user?.full_name}</p>
-                  <p className="text-xs text-gray-400">{p.user?.email}</p>
-                  <p className="text-xs text-indigo-600 capitalize mt-0.5">
-                    {p.profession?.replace(/_/g, ' ')}
-                    {p.license_number && <span className="text-gray-400"> · Mat. {p.license_number}</span>}
-                  </p>
-                  {(p.city || p.province) && (
-                    <p className="text-xs text-gray-400">{[p.city, p.province].filter(Boolean).join(', ')}</p>
-                  )}
-                </div>
-                <div className="flex gap-2 flex-shrink-0">
-                  <button onClick={() => verifyProfessional(p.id, true)}
-                    className="px-4 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition-colors">
-                    Aprobar
-                  </button>
-                  <button onClick={() => verifyProfessional(p.id, false)}
-                    className="px-4 py-2 bg-gray-100 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-colors">
-                    Rechazar
-                  </button>
-                </div>
+                {/* Documentos de verificación */}
+                {(p.dni_front_url || p.dni_back_url || p.selfie_url) && (
+                  <div className="flex gap-3 pt-3 border-t border-gray-100">
+                    {[
+                      { url: p.dni_front_url, label: 'DNI Frente' },
+                      { url: p.dni_back_url,  label: 'DNI Dorso' },
+                      { url: p.selfie_url,    label: 'Selfie' },
+                    ].filter(d => d.url).map(doc => (
+                      <a key={doc.label} href={doc.url} target="_blank" rel="noopener noreferrer"
+                        className="flex-1 aspect-video rounded-lg overflow-hidden bg-gray-100 relative block hover:opacity-90 transition-opacity">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={doc.url} alt={doc.label} className="w-full h-full object-cover" />
+                        <span className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] text-center py-0.5">
+                          {doc.label}
+                        </span>
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>

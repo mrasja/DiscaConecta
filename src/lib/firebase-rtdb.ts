@@ -117,6 +117,19 @@ export function subscribeAvailability(professionalFirebaseUid: string, callback:
   return () => off(availRef, 'value', handler);
 }
 
+// Typing indicator
+export function setTyping(convId: string, userId: string, isTyping: boolean) {
+  const typingRef = ref(db, `typing/${convId}/${userId}`);
+  return set(typingRef, isTyping ? true : null);
+}
+
+export function subscribeTyping(convId: string, otherUserId: string, callback: (typing: boolean) => void) {
+  const typingRef = ref(db, `typing/${convId}/${otherUserId}`);
+  const handler = (snap: any) => callback(snap.exists() && snap.val() === true);
+  onValue(typingRef, handler);
+  return () => off(typingRef, 'value', handler);
+}
+
 // Total de no leídos
 export function subscribeTotalUnread(userId: string, callback: (total: number) => void) {
   const unreadRef = ref(db, `unreadCount/${userId}`);

@@ -1,6 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { compressImage } from '@/lib/compress-image';
 
 interface DisplayProps {
   avg: number | null;
@@ -60,21 +61,35 @@ interface ModalProps {
 }
 
 export function ReviewModal({ targetType, targetId, targetName, onClose, onSubmitted }: ModalProps) {
-  const { token } = useAuth();
-  const [rating, setRating]   = useState(0);
-  const [comment, setComment] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState('');
+  const { token, firebaseUser } = useAuth();
+  const [rating, setRating]     = useState(0);
+  const [comment, setComment]   = useState('');
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePhoto = async (file: File) => {
+    const compressed = await compressImage(file, 0.5);
+    setPhotoFile(compressed);
+    setPhotoPreview(URL.createObjectURL(compressed));
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (rating === 0) { setError('Elegí una puntuación'); return; }
     setLoading(true); setError('');
     try {
+      let photoUrl: string | null = null;
+      if (photoFile && firebaseUser) {
+        const { uploadReviewPhoto } = await import('@/lib/firebase-storage');
+        photoUrl = await uploadReviewPhoto(firebaseUser.uid, photoFile);
+      }
       const res = await fetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ target_type: targetType, target_id: targetId, rating, comment }),
+        body: JSON.stringify({ target_type: targetType, target_id: targetId, rating, comment, photo_url: photoUrl }),
       });
       if (res.ok) { onSubmitted(); onClose(); }
       else setError('Error al enviar la reseña');
@@ -103,6 +118,23 @@ export function ReviewModal({ targetType, targetId, targetName, onClose, onSubmi
             <textarea id="review-comment" value={comment} onChange={e => setComment(e.target.value)}
               rows={3} placeholder="Contá tu experiencia..."
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-2">Foto <span className="text-gray-400 font-normal">(opcional)</span></p>
+            <input ref={photoInputRef} type="file" accept="image/*" className="hidden"
+              onChange={e => e.target.files?.[0] && handlePhoto(e.target.files[0])} />
+            {photoPreview ? (
+              <div className="relative w-24 h-24">
+                <img src={photoPreview} alt="Preview" className="w-24 h-24 rounded-xl object-cover border border-gray-200" />
+                <button type="button" onClick={() => { setPhotoFile(null); setPhotoPreview(null); }}
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center">×</button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => photoInputRef.current?.click()}
+                className="flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors">
+                📷 Agregar foto
+              </button>
+            )}
           </div>
           {error && <p role="alert" className="text-red-500 text-sm">{error}</p>}
           <div className="flex gap-3">

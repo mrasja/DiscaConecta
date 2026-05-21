@@ -1,14 +1,14 @@
-'use client';
+﻿'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ReactElement } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { useProfessionals, useCenters, useEscuelas } from '@/hooks/useSearch';
+import { useProfessionals, useCenters, useEscuelas, useMapProfessionals } from '@/hooks/useSearch';
 import { useAuth } from '@/context/AuthContext';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 import type { SearchFilters, Professional, Center } from '@/types';
 import Image from 'next/image';
-import { APIProvider, Map, Marker, InfoWindow } from '@vis.gl/react-google-maps';
+import dynamic from 'next/dynamic';
 import { FavoriteButton } from '@/components/FavoriteButton';
 import { useToast } from '@/context/ToastContext';
 import { useAutoSaveSearch, loadLastSearch } from '@/hooks/useLastSearch';
@@ -16,6 +16,17 @@ import { DarkModeToggle } from '@/components/DarkModeToggle';
 import { OnboardingModal } from '@/components/OnboardingModal';
 import { useAndroidBackButton } from '@/hooks/useAndroidBackButton';
 import { useRecentSearches } from '@/hooks/useRecentSearches';
+import { SaveSearchButton } from '@/components/SaveSearchButton';
+import { getCurrentPosition } from '@/lib/geolocation';
+
+const MapTab = dynamic(() => import('@/components/MapTab'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center rounded-2xl bg-gray-100" style={{ height: '70vh' }}>
+      <p className="text-gray-400 text-sm">Cargando mapa...</p>
+    </div>
+  ),
+});
 
 const DISABILITY_OPTIONS = [
   { value: 'visual',      label: 'Visual',       icon: '👁️' },
@@ -172,6 +183,7 @@ export default function AlumnoSearchPage() {
   const centers = centerPages?.pages.flat() ?? [];
 
   const { data: escuelas = [], isLoading: loadingEscuelas } = useEscuelas(filters);
+  const { data: mapProfessionals = [] } = useMapProfessionals(filters, tab === 'mapa');
 
   const updateFilter = (key: keyof SearchFilters, value: any) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -182,25 +194,22 @@ export default function AlumnoSearchPage() {
 
   const clearFilters = () => setFilters(DEFAULT_FILTERS);
 
-  const handleGeolocate = (recenterMap = false) => {
-    if (!navigator.geolocation) { toast('Tu dispositivo no soporta geolocalización', 'error'); return; }
+  const handleGeolocate = async (recenterMap = false) => {
     setGeoLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        setFilters(prev => ({ ...prev, lat, lng, city: '', province: '' }));
-        if (recenterMap || tab === 'mapa') {
-          setMapInitCenter({ lat, lng });
-          setMapInitZoom(14);
-          setMapKey(k => k + 1);
-        }
-        setGeoLoading(false);
-        toast('Ubicación actualizada', 'success');
-      },
-      () => { setGeoLoading(false); toast('No se pudo obtener la ubicación', 'error'); },
-      { timeout: 8000, enableHighAccuracy: true },
-    );
+    try {
+      const { lat, lng } = await getCurrentPosition();
+      setFilters(prev => ({ ...prev, lat, lng, city: '', province: '' }));
+      if (recenterMap || tab === 'mapa') {
+        setMapInitCenter({ lat, lng });
+        setMapInitZoom(14);
+        setMapKey(k => k + 1);
+      }
+      toast('Ubicación actualizada', 'success');
+    } catch {
+      toast('No se pudo obtener la ubicación. Verificá que el permiso esté activado.', 'error');
+    } finally {
+      setGeoLoading(false);
+    }
   };
 
   const activeFilterCount = [
@@ -220,18 +229,9 @@ export default function AlumnoSearchPage() {
     if (typeof window === 'undefined') return;
     if (localStorage.getItem('discapp_geo_asked')) return;
     localStorage.setItem('discapp_geo_asked', '1');
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      pos => setFilters(prev => ({
-        ...prev,
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        city: '',
-        province: '',
-      })),
-      () => {}, // falla silenciosamente
-      { timeout: 5000 },
-    );
+    getCurrentPosition()
+      .then(({ lat, lng }) => setFilters(prev => ({ ...prev, lat, lng, city: '', province: '' })))
+      .catch(() => {}); // silencioso en el primer uso
   }, []);
 
   // Búsqueda por voz
@@ -561,12 +561,15 @@ export default function AlumnoSearchPage() {
               </span>
             )}
           </h2>
-          {activeFilterCount > 0 && (
-            <button onClick={clearFilters}
-              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium no-min">
-              Limpiar filtros
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            <SaveSearchButton filters={filters} />
+            {activeFilterCount > 0 && (
+              <button onClick={clearFilters}
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium no-min">
+                Limpiar filtros
+              </button>
+            )}
+          </div>
         </div>
         <FiltersContent />
       </section>
@@ -714,194 +717,22 @@ export default function AlumnoSearchPage() {
 
         {/* MAPA */}
         {tab === 'mapa' && (
-          <div role="tabpanel" id="panel-mapa" aria-labelledby="tab-mapa">
-            <section className="sr-only" aria-label="Lista de resultados del mapa">
-              <p>El mapa interactivo no es accesible con lector de pantalla. A continuación se listan todos los resultados.</p>
-              {(professionals?.length ?? 0) > 0 && (
-                <>
-                  <h2>Profesionales ({professionals!.length})</h2>
-                  <ul>
-                    {professionals!.map((p: any) => (
-                      <li key={p.id}>
-                        {p.user?.fullName || p.user?.full_name} — {p.profession?.replace(/_/g, ' ')} — {p.city}, {p.province}
-                        {p.contact_whatsapp ? ` — WhatsApp: ${p.contact_whatsapp}` : ''}
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-              {(centers?.length ?? 0) > 0 && (
-                <>
-                  <h2>Centros ({centers!.length})</h2>
-                  <ul>
-                    {centers!.map((c: any) => (
-                      <li key={c.id}>{c.name} — {c.city}, {c.province}{c.phone ? ` — Tel: ${c.phone}` : ''}</li>
-                    ))}
-                  </ul>
-                </>
-              )}
-              {(escuelas?.length ?? 0) > 0 && (
-                <>
-                  <h2>Escuelas ({escuelas.length})</h2>
-                  <ul>
-                    {escuelas.map((e: any) => (
-                      <li key={e.id}>{e.nombre} — {e.localidad}, {e.jurisdiccion}{e.telefono ? ` — Tel: ${e.telefono}` : ''}</li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </section>
-            {/* Filtros de capas + geolocalización */}
-            <div className="flex gap-2 mb-3 flex-wrap items-center">
-              {([
-                { key: 'profesionales', label: 'Profesionales', color: '#4f46e5', emoji: '👤', count: professionals?.length ?? 0 },
-                { key: 'centros',       label: 'Centros',       color: '#ea580c', emoji: '🏥', count: centers?.length ?? 0 },
-                { key: 'escuelas',      label: 'Escuelas',      color: '#7c3aed', emoji: '🏫', count: escuelas?.length ?? 0 },
-              ] as const).map(({ key, label, color, emoji, count }) => {
-                const active = mapLayers[key];
-                return (
-                  <button key={key}
-                    onClick={() => toggleLayer(key)}
-                    aria-pressed={active}
-                    style={active ? { backgroundColor: color, color: 'white' } : { backgroundColor: '#f3f4f6', color: '#9ca3af' }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors no-min">
-                    <span aria-hidden="true">{emoji}</span>
-                    {label}
-                    <span style={{ opacity: 0.75 }}>({count})</span>
-                  </button>
-                );
-              })}
-              <button
-                onClick={() => handleGeolocate(true)}
-                disabled={geoLoading}
-                aria-label="Centrar mapa en mi ubicación"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors no-min ml-auto"
-                style={{ backgroundColor: '#f0fdf4', color: '#16a34a' }}>
-                {geoLoading ? '⏳' : '📍'} Mi ubicación
-              </button>
-            </div>
-
-            <div aria-hidden="true" className="rounded-2xl overflow-hidden shadow-lg" style={{ height: '70vh' }}>
-              <APIProvider apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!}>
-                <Map
-                  key={mapKey}
-                  defaultCenter={mapInitCenter}
-                  defaultZoom={mapInitZoom}
-                  style={{ width: '100%', height: '100%' }}>
-                  {mapLayers.profesionales && professionals?.map((p: any) => {
-                    const pos = parseLocation(p.location_text);
-                    if (!pos) return null;
-                    return <Marker key={p.id} position={pos}
-                      title={`${p.user?.fullName || p.user?.full_name} — ${p.profession?.replace(/_/g, ' ')}`}
-                      onClick={() => setSelected({ type: 'professional', data: p })} />;
-                  })}
-                  {mapLayers.centros && centers?.map((c: any) => {
-                    const pos = parseLocation(c.location_text);
-                    if (!pos) return null;
-                    return <Marker key={c.id} position={pos}
-                      title={`${(c.nombre || c.name)} — ${(c.tipo || c.center_type)?.replace(/_/g, ' ')}`}
-                      onClick={() => setSelected({ type: 'center', data: c })} />;
-                  })}
-                  {mapLayers.escuelas && escuelas?.map((e: any) => {
-                    const pos = parseLocation(e.location_text);
-                    if (!pos) return null;
-                    return <Marker key={e.id} position={pos}
-                      title={`${e.nombre} — ${e.localidad}`}
-                      onClick={() => setSelected({ type: 'escuela', data: e })} />;
-                  })}
-                  {selected && (() => {
-                    const pos = parseLocation(selected.data.location_text);
-                    if (!pos) return null;
-                    const d = selected.data;
-                    return (
-                      <InfoWindow position={pos} onCloseClick={() => setSelected(null)}>
-                        <div style={{ minWidth: 180, maxWidth: 240, fontFamily: 'Arial, sans-serif' }}>
-                          {selected.type === 'professional' && (
-                            <>
-                              <p style={{ fontWeight: 700, fontSize: 13, marginBottom: 2 }}>{d.full_name}</p>
-                              <p style={{ fontSize: 11, color: '#4f46e5', marginBottom: 2, textTransform: 'capitalize' }}>{d.profession?.replace(/_/g,' ')}</p>
-                              <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>{d.city}, {d.province}</p>
-                              {d.is_verified && <span style={{ fontSize: 10, color: '#3b82f6' }}>✓ Verificado</span>}
-                              <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-                                {d.contact_whatsapp && (
-                                  <a href={`https://wa.me/${d.contact_whatsapp.replace(/\D/g,'')}`}
-                                    target="_blank" rel="noopener noreferrer"
-                                    style={{ fontSize: 11, color: '#16a34a', fontWeight: 600 }}>
-                                    WhatsApp →
-                                  </a>
-                                )}
-                                <a href={`/profesional/${d.id}`}
-                                  style={{ fontSize: 11, color: '#4f46e5', fontWeight: 600 }}>
-                                  Ver perfil →
-                                </a>
-                              </div>
-                            </>
-                          )}
-                          {selected.type === 'center' && (
-                            <>
-                              <p style={{ fontWeight: 700, fontSize: 13, marginBottom: 2 }}>{d.nombre || d.name}</p>
-                              <p style={{ fontSize: 11, color: '#ea580c', marginBottom: 2, textTransform: 'capitalize' }}>{(d.tipo || d.centerType)?.replace(/_/g,' ')}</p>
-                              <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>{d.localidad || d.city}, {d.provincia || d.province}</p>
-                              {d.descripcion && <p style={{ fontSize: 11, color: '#374151', marginBottom: 4 }}>{d.descripcion.slice(0, 80)}{d.descripcion.length > 80 ? '…' : ''}</p>}
-                              <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-                                {(d.telefono || d.phone) && (
-                                  <a href={`tel:${d.telefono || d.phone}`}
-                                    style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>
-                                    📞 Llamar
-                                  </a>
-                                )}
-                                {d.whatsapp && (
-                                  <a href={`https://wa.me/${d.whatsapp.replace(/\D/g,'')}`}
-                                    target="_blank" rel="noopener noreferrer"
-                                    style={{ fontSize: 11, color: '#16a34a', fontWeight: 600 }}>
-                                    WhatsApp →
-                                  </a>
-                                )}
-                                <a href={`/centro/${d.id}`}
-                                  style={{ fontSize: 11, color: '#ea580c', fontWeight: 600 }}>
-                                  Ver perfil →
-                                </a>
-                                <button onClick={() => { setSelected(null); setTabRaw('centros'); }}
-                                  style={{ fontSize: 11, color: '#4f46e5', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                                  Ver lista →
-                                </button>
-                              </div>
-                            </>
-                          )}
-                          {selected.type === 'escuela' && (
-                            <>
-                              <p style={{ fontWeight: 700, fontSize: 13, marginBottom: 2 }}>{d.nombre}</p>
-                              <p style={{ fontSize: 11, color: '#7c3aed', marginBottom: 2 }}>{d.sector} · {d.ambito}</p>
-                              <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>{d.localidad}, {d.jurisdiccion}</p>
-                              {d.domicilio && <p style={{ fontSize: 11, color: '#374151', marginBottom: 4 }}>📍 {d.domicilio}</p>}
-                              <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-                                {d.telefono && (
-                                  <a href={`tel:${d.telefono}`}
-                                    style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>
-                                    📞 Llamar
-                                  </a>
-                                )}
-                                {d.email && (
-                                  <a href={`mailto:${d.email}`}
-                                    style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>
-                                    ✉ Email
-                                  </a>
-                                )}
-                                <button onClick={() => { setSelected(null); setTabRaw('escuelas'); }}
-                                  style={{ fontSize: 11, color: '#4f46e5', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                                  Ver lista →
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </InfoWindow>
-                    );
-                  })()}
-                </Map>
-              </APIProvider>
-            </div>
-          </div>
+          <MapTab
+            professionals={mapProfessionals}
+            centers={centers}
+            escuelas={escuelas}
+            mapLayers={mapLayers}
+            toggleLayer={toggleLayer}
+            geoLoading={geoLoading}
+            handleGeolocate={handleGeolocate}
+            mapKey={mapKey}
+            mapInitCenter={mapInitCenter}
+            mapInitZoom={mapInitZoom}
+            selected={selected}
+            setSelected={setSelected}
+            setTabRaw={setTabRaw}
+            apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!}
+          />
         )}
       </div>
 
@@ -979,9 +810,27 @@ export default function AlumnoSearchPage() {
 
 
 // ─── TARJETA PROFESIONAL ──────────────────────────────────────
+function shareReferral(p: Professional) {
+  const name = p.user?.fullName ?? 'este profesional';
+  const prof = p.profession.replace(/_/g, ' ');
+  const url  = `${window.location.origin}/profesional/${p.id}`;
+  const text = `Te recomiendo a ${name}, ${prof} en Discapp. Podés ver su perfil acá: ${url}`;
+  if (navigator.share) {
+    navigator.share({ title: `Profesional en Discapp — ${name}`, text, url }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(text).then(() => alert('Link copiado al portapapeles'));
+  }
+}
+
 const ProfessionalCard = ({ professional: p }: { professional: Professional }) => (
-  <article className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow"
+  <article className={`bg-white rounded-xl border p-5 hover:shadow-md transition-shadow relative
+    ${(p as any).is_active_featured ? 'border-amber-300 shadow-amber-50 shadow-md' : 'border-gray-200'}`}
     aria-label={`${p.user?.fullName}, ${p.profession.replace(/_/g,' ')}, ${p.city}`}>
+    {(p as any).is_active_featured && (
+      <span className="absolute top-3 right-3 text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
+        ⭐ Destacado
+      </span>
+    )}
     <div className="flex items-start gap-3 mb-3">
       <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 overflow-hidden" aria-hidden="true">
         {(p as any).avatar_url
@@ -1033,6 +882,13 @@ const ProfessionalCard = ({ professional: p }: { professional: Professional }) =
         aria-label={`Ver perfil completo de ${p.user?.fullName}`}>
         Ver perfil
       </a>
+      <button
+        onClick={() => shareReferral(p)}
+        aria-label={`Compartir perfil de ${p.user?.fullName}`}
+        className="px-3 py-2 bg-gray-50 text-gray-500 text-sm rounded-lg hover:bg-gray-100 transition-colors"
+        title="Derivar / compartir">
+        ↗
+      </button>
     </div>
   </article>
 );
@@ -1051,12 +907,19 @@ const CenterCard = ({ center: raw, onShowMap }: { center: Center; onShowMap?: ()
   const whatsapp    = c.whatsapp;
   const logoUrl     = c.logo_url      ?? c.logoUrl;
   const isVerified  = c.is_verified   ?? c.isVerified  ?? false;
+  const isPro       = c.is_pro        ?? false;
   const fotos       = c.fotos         ?? [];
   const hasLocation = !!c.location_text;
 
   return (
-    <article className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow"
+    <article className={`bg-white rounded-xl border p-5 hover:shadow-md transition-shadow relative
+      ${isPro ? 'border-indigo-300 shadow-indigo-50 shadow-md' : 'border-gray-200'}`}
       aria-label={`${name}, ${centerType.replace(/_/g,' ')}, ${city}`}>
+      {isPro && (
+        <span className="absolute top-3 right-3 text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full">
+          PRO
+        </span>
+      )}
       <div className="flex items-start gap-3 mb-3">
         <div className="w-12 h-12 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0 overflow-hidden" aria-hidden="true">
           {logoUrl

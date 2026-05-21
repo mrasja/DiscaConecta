@@ -31,6 +31,10 @@ vi.mock('@/lib/prisma', () => ({
   prisma: { $queryRaw: vi.fn() },
 }));
 
+vi.mock('@/lib/auth-server', () => ({
+  verifyToken: vi.fn(),
+}));
+
 describe('GET /api/professionals', () => {
   beforeEach(async () => {
     const { prisma } = await import('@/lib/prisma');

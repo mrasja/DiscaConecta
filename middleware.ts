@@ -12,12 +12,24 @@ if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) 
   });
 }
 
+function extractUserId(request: NextRequest): string | null {
+  try {
+    const auth = request.headers.get('authorization') ?? '';
+    const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+    if (!token) return null;
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.uid ?? payload.sub ?? null;
+  } catch { return null; }
+}
+
 export async function middleware(request: NextRequest) {
   if (ratelimit && request.nextUrl.pathname.startsWith('/api/')) {
+    const userId = extractUserId(request);
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
             ?? request.headers.get('x-real-ip')
             ?? '127.0.0.1';
-    const { success } = await ratelimit.limit(ip);
+    const identifier = userId ? `user_${userId}` : `ip_${ip}`;
+    const { success } = await ratelimit.limit(identifier);
     if (!success) {
       return NextResponse.json(
         { error: 'Demasiadas solicitudes. Esperá un momento.' },
@@ -25,7 +37,18 @@ export async function middleware(request: NextRequest) {
       );
     }
   }
-  return NextResponse.next();
+
+  const res = NextResponse.next();
+  res.headers.set('X-Content-Type-Options', 'nosniff');
+  res.headers.set('X-Frame-Options', 'DENY');
+  res.headers.set('X-XSS-Protection', '1; mode=block');
+  res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.headers.set('Permissions-Policy', 'camera=self, microphone=(), geolocation=self');
+  res.headers.set(
+    'Strict-Transport-Security',
+    'max-age=63072000; includeSubDomains; preload'
+  );
+  return res;
 }
 
 export const config = {

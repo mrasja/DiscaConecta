@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { setAvailabilityNow, subscribeAvailability } from '@/lib/firebase-rtdb';
 import { useAndroidBackButton } from '@/hooks/useAndroidBackButton';
+import { OnboardingModal } from '@/components/OnboardingModal';
+import { AppointmentsList } from '@/components/AppointmentsList';
 
 const ADMIN_EMAILS = ['m_rasja@hotmail.com', 'mrasja@gmail.com'];
 
@@ -19,6 +21,13 @@ export default function ProfesionalDashboard() {
   const [loadingData, setLoadingData] = useState(true);
   const [available,  setAvailable]    = useState(false);
   const [togglingAvail, setTogglingAvail] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
+  const [stats, setStats] = useState<{
+    avgRating: number | null;
+    reviewCount: number;
+    favoriteCount: number;
+    conversationCount: number;
+  } | null>(null);
 
   // Suscribirse a disponibilidad en tiempo real
   useEffect(() => {
@@ -43,6 +52,12 @@ export default function ProfesionalDashboard() {
     ]).then(([prof, centro]) => {
       setHasPerfil(!!prof);
       setHasCentro(!!centro);
+      if (prof) {
+        setVerificationStatus(prof.verification_status ?? null);
+        fetch('/api/professionals/stats', { headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.ok ? r.json() : null)
+          .then(s => { if (s) setStats(s); });
+      }
     }).finally(() => setLoadingData(false));
   }, [token]);
 
@@ -119,6 +134,7 @@ export default function ProfesionalDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <OnboardingModal />
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
@@ -171,6 +187,94 @@ export default function ProfesionalDashboard() {
                 style={{ transform: available ? 'translateX(1.5rem)' : 'translateX(0.125rem)' }}
               />
             </button>
+          </div>
+        )}
+
+        {/* Banner de estado de verificación */}
+        {hasPerfil && verificationStatus && verificationStatus !== 'verificado' && (
+          <div className={`mb-6 p-4 rounded-xl border flex items-start gap-3 ${
+            verificationStatus === 'rechazado'
+              ? 'bg-red-50 border-red-200'
+              : verificationStatus === 'documentos_enviados'
+              ? 'bg-blue-50 border-blue-200'
+              : 'bg-amber-50 border-amber-200'
+          }`}>
+            <span className="text-2xl flex-shrink-0" aria-hidden="true">
+              {verificationStatus === 'rechazado' ? '❌' : verificationStatus === 'documentos_enviados' ? '⏳' : '📄'}
+            </span>
+            <div>
+              <p className={`font-semibold text-sm ${
+                verificationStatus === 'rechazado' ? 'text-red-800' : verificationStatus === 'documentos_enviados' ? 'text-blue-800' : 'text-amber-800'
+              }`}>
+                {verificationStatus === 'rechazado'
+                  ? 'Verificación rechazada'
+                  : verificationStatus === 'documentos_enviados'
+                  ? 'Documentos en revisión'
+                  : 'Sin documentos de verificación'}
+              </p>
+              <p className={`text-xs mt-0.5 ${
+                verificationStatus === 'rechazado' ? 'text-red-700' : verificationStatus === 'documentos_enviados' ? 'text-blue-700' : 'text-amber-700'
+              }`}>
+                {verificationStatus === 'rechazado'
+                  ? 'El equipo no pudo verificar tus documentos. Por favor actualizá tu perfil con documentos válidos.'
+                  : verificationStatus === 'documentos_enviados'
+                  ? 'Tus documentos fueron enviados y están siendo revisados por el equipo. Te avisaremos cuando esté listo.'
+                  : 'Subí el frente y dorso de tu DNI y una selfie para verificar tu identidad.'}
+              </p>
+              {(verificationStatus === 'sin_documentos' || verificationStatus === 'rechazado') && (
+                <button
+                  onClick={() => router.push('/dashboard/profesional/registrarse')}
+                  className="mt-2 text-xs font-semibold text-indigo-600 underline">
+                  Ir a verificar →
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {hasPerfil && verificationStatus === 'verificado' && (
+          <div className="mb-6 p-3 bg-green-50 border border-green-200 rounded-xl flex items-center gap-2">
+            <span className="text-green-600 text-lg" aria-hidden="true">✓</span>
+            <p className="text-sm font-semibold text-green-800">Perfil verificado</p>
+          </div>
+        )}
+
+        {/* Estadísticas */}
+        {hasPerfil && stats && (
+          <div className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              {
+                icon: '⭐',
+                value: stats.avgRating !== null ? `${stats.avgRating}` : '—',
+                label: 'Calificación',
+                sub: stats.reviewCount > 0 ? `${stats.reviewCount} reseña${stats.reviewCount !== 1 ? 's' : ''}` : 'Sin reseñas',
+              },
+              { icon: '❤️', value: String(stats.favoriteCount), label: 'Favoritos', sub: 'Guardado por usuarios' },
+              { icon: '💬', value: String(stats.conversationCount), label: 'Conversaciones', sub: 'Desde siempre' },
+            ].map(({ icon, value, label, sub }) => (
+              <div key={label} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm text-center">
+                <span className="text-2xl" aria-hidden="true">{icon}</span>
+                <p className="text-xl font-bold text-gray-900 mt-1">{value}</p>
+                <p className="text-xs font-semibold text-gray-500">{label}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{sub}</p>
+              </div>
+            ))}
+            <button
+              onClick={() => router.push(`/dashboard/profesional/estadisticas`)}
+              className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 shadow-sm text-center hover:bg-indigo-100 transition-colors">
+              <span className="text-2xl" aria-hidden="true">📊</span>
+              <p className="text-xs font-semibold text-indigo-600 mt-2">Ver más estadísticas</p>
+            </button>
+          </div>
+        )}
+
+        {/* Citas pendientes */}
+        {hasPerfil && (
+          <div className="mb-6 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              📅 Citas
+            </h3>
+            <AppointmentsList role="professional" />
           </div>
         )}
 

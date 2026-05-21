@@ -79,6 +79,17 @@ export function NotificationPermission() {
   );
 }
 
+/** Notificación local cuando el usuario tiene la app en segundo plano */
+export function showMessageNotification(senderName: string, preview: string) {
+  if (Notification.permission !== 'granted') return;
+  if (document.visibilityState === 'visible') return;
+  new Notification(`Mensaje de ${senderName}`, {
+    body: preview,
+    icon: '/icons/icon-192.png',
+    tag: 'new-message',
+  });
+}
+
 /** Llamar cuando se envía un mensaje nuevo, para notificar al destinatario */
 export async function notifyRecipient(
   authToken: string,

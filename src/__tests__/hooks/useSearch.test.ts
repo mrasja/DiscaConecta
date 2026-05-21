@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -42,7 +43,7 @@ describe('useProfessionals', () => {
       { wrapper: createWrapper() }
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual(mockProfList);
+    expect(result.current.data?.pages[0]).toEqual(mockProfList);
   });
 
   it('devuelve [] si el fetch falla', async () => {
@@ -52,7 +53,7 @@ describe('useProfessionals', () => {
       { wrapper: createWrapper() }
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual([]);
+    expect(result.current.data?.pages[0]).toEqual([]);
   });
 });
 
@@ -70,7 +71,7 @@ describe('useCenters', () => {
       { wrapper: createWrapper() }
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual(mockCenterList);
+    expect(result.current.data?.pages[0]).toEqual(mockCenterList);
   });
 });
 

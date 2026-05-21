@@ -81,6 +81,28 @@ export const useEscuelas = (filters: SearchFilters) =>
     enabled: true,
   });
 
+// ── Todos los profesionales con ubicación para el mapa (sin paginar) ──
+export const useMapProfessionals = (filters: SearchFilters, enabled: boolean) =>
+  useQuery({
+    queryKey: ['professionals-map', filters],
+    queryFn: async () => {
+      const p = buildParams(filters, {
+        disabilityType: filters.disabilityType    || '',
+        profession:     filters.profession        || '',
+        isVerifiedOnly: filters.isVerifiedOnly ? 'true' : '',
+        nombre:         filters.nombreProfesional || '',
+        obraSocial:     filters.obraSocial        || '',
+        limit:          '200',
+        offset:         '0',
+      });
+      const res = await fetch(`/api/professionals?${p}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: enabled && (!!filters.city || !!filters.lat),
+  });
+
 export const useStudents = (filters: SearchFilters) =>
   useQuery({
     queryKey: ['students', filters],

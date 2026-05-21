@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react';
 import { uploadAvatar } from '@/lib/firebase-storage';
 import { useAuth } from '@/context/AuthContext';
+import { compressImage } from '@/lib/compress-image';
 
 interface AvatarUploadProps {
   current?: string | null;
@@ -18,13 +19,14 @@ export function AvatarUpload({ current, name, onUpload }: AvatarUploadProps) {
 
   const handleFile = async (file: File) => {
     if (!firebaseUser || !file) return;
-    if (file.size > 5 * 1024 * 1024) { setError('La imagen debe pesar menos de 5 MB'); return; }
+    if (file.size > 10 * 1024 * 1024) { setError('La imagen debe pesar menos de 10 MB'); return; }
     setError('');
     setUploading(true);
     const localUrl = URL.createObjectURL(file);
     setPreview(localUrl);
     try {
-      const url = await uploadAvatar(firebaseUser.uid, file);
+      const toUpload = await compressImage(file, 0.3);
+      const url = await uploadAvatar(firebaseUser.uid, toUpload);
       onUpload(url);
     } catch {
       setPreview(null);

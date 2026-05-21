@@ -6,7 +6,10 @@
       "Bash(npm show *)",
       "Bash(npx cap *)",
       "PowerShell(& \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\\\\bin\\\\keytool.exe\" -list -v -keystore \"$env:USERPROFILE\\\\.android\\\\debug.keystore\" -alias androiddebugkey -storepass android -keypass android 2>&1 | Select-String \"SHA1|SHA-1|Certificate\")",
-      "Bash(mkdir -p \"c:\\\\Users\\\\Admin\\\\Documents\\\\Aplicacion\\\\discapp\\\\src\\\\app\\\\centro\\\\[id]\")"
+      "Bash(mkdir -p \"c:\\\\Users\\\\Admin\\\\Documents\\\\Aplicacion\\\\discapp\\\\src\\\\app\\\\centro\\\\[id]\")",
+      "Bash(node -e \"const p=require\\('./c:/Users/Admin/Documents/Aplicacion/discapp/package.json'\\); console.log\\(JSON.stringify\\(p.scripts, null, 2\\)\\)\")",
+      "Bash(Get-Content \"c:\\\\Users\\\\Admin\\\\Documents\\\\Aplicacion\\\\discapp\\\\vitest.config.ts\" -Raw)",
+      "Bash(Write-Output)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Admin\\Documents\\Aplicacion\\discapp\\src\\app\\centro"

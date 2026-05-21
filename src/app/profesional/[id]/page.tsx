@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { notFound } from 'next/navigation';
 import { ContactButton } from '@/components/ContactButton';
 import { ShareButton } from '@/components/ShareButton';
+import { AppointmentButton } from '@/components/AppointmentButton';
+import { ReferralButton } from '@/components/ReferralButton';
 import { StarDisplay, ReviewModal } from '@/components/ReviewStars';
 import { MapPin, CheckCircle, Briefcase, Calendar } from 'lucide-react';
 import { ReviewsSection } from '@/components/ReviewsSection';
@@ -135,6 +137,14 @@ export default async function ProfessionalProfilePage({ params }: { params: Prom
             professionalAvatar={prof.user?.avatar_url}
             whatsapp={prof.contact_whatsapp}
             phone={prof.contact_phone}
+            />
+            <AppointmentButton
+              professionalId={prof.id}
+              professionalName={prof.user?.full_name ?? 'el profesional'}
+            />
+            <ReferralButton
+              professionalId={prof.id}
+              professionalName={prof.user?.full_name ?? 'el profesional'}
             />
         </div>
       </div>

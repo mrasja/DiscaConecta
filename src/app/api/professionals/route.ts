@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
              p.is_verified, p.bio, p.specialties, p.work_zones,
              p.address, p.neighborhood, p.city, p.province,
              p.contact_phone, p.contact_whatsapp, p.is_available,
+             p.is_featured, (p.is_featured AND (p.featured_until IS NULL OR p.featured_until > NOW())) AS is_active_featured,
              u.full_name, u.avatar_url, u.email, u.firebase_uid,
              ST_AsText(p.location) AS location_text,
              CASE WHEN ${lat} != 0 AND p.location IS NOT NULL THEN
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
                ST_MakePoint(${lng}, ${lat})::geography,
                ${radiusKm * 1000}
              ))
-      ORDER BY distancia_km ASC NULLS LAST, p.is_verified DESC
+      ORDER BY is_active_featured DESC NULLS LAST, distancia_km ASC NULLS LAST, p.is_verified DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
 
@@ -85,6 +86,7 @@ export async function POST(request: NextRequest) {
           license_number:   body.licenseNumber,
           bio:              body.bio,
           specialties:      body.specialties || [],
+          obras_sociales:   body.obrasSociales || [],
           work_zones:       body.workZones || [],
           city:             body.city,
           province:         body.province,
@@ -92,7 +94,12 @@ export async function POST(request: NextRequest) {
           neighborhood:     body.neighborhood,
           contact_phone:    body.contactPhone,
           contact_whatsapp: body.contactWhatsapp,
-          is_available:     body.isAvailable ?? true,
+          is_available:         body.isAvailable ?? true,
+          ...(body.dniFrontUrl   ? { dni_front_url:       body.dniFrontUrl }   : {}),
+          ...(body.dniBackUrl    ? { dni_back_url:        body.dniBackUrl }    : {}),
+          ...(body.selfieUrl     ? { selfie_url:          body.selfieUrl }     : {}),
+          ...(body.dniFrontUrl || body.dniBackUrl || body.selfieUrl
+            ? { verification_status: 'documentos_enviados' } : {}),
         }
       });
       return NextResponse.json(updated);
@@ -100,20 +107,25 @@ export async function POST(request: NextRequest) {
 
     const professional = await prisma.professionals.create({
       data: {
-        user_id:          user.id,
-        profession:       body.profession,
-        license_number:   body.licenseNumber,
-        bio:              body.bio,
-        specialties:      body.specialties || [],
-        work_zones:       body.workZones || [],
-        city:             body.city,
-        province:         body.province,
-        address:          body.address,
-        neighborhood:     body.neighborhood,
-        contact_phone:    body.contactPhone,
-        contact_whatsapp: body.contactWhatsapp,
-        is_available:     body.isAvailable ?? true,
-        is_verified:      false,
+        user_id:              user.id,
+        profession:           body.profession,
+        license_number:       body.licenseNumber,
+        bio:                  body.bio,
+        specialties:          body.specialties || [],
+        obras_sociales:       body.obrasSociales || [],
+        work_zones:           body.workZones || [],
+        city:                 body.city,
+        province:             body.province,
+        address:              body.address,
+        neighborhood:         body.neighborhood,
+        contact_phone:        body.contactPhone,
+        contact_whatsapp:     body.contactWhatsapp,
+        is_available:         body.isAvailable ?? true,
+        is_verified:          false,
+        dni_front_url:        body.dniFrontUrl,
+        dni_back_url:         body.dniBackUrl,
+        selfie_url:           body.selfieUrl,
+        verification_status:  body.dniFrontUrl ? 'documentos_enviados' : 'sin_documentos',
       }
     });
 
