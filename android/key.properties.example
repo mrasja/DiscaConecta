@@ -1,0 +1,7 @@
+# Copiá este archivo a key.properties (sin .example) y completá con los datos
+# reales de tu keystore de release. key.properties NUNCA se sube a git —
+# contiene las contraseñas que firman la app de producción.
+storePassword=TU_PASSWORD_ACA
+keyPassword=TU_PASSWORD_ACA
+keyAlias=discaconecta
+storeFile=C:/ruta/completa/a/tu/discaconecta-release.keystore

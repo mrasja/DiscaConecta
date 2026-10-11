@@ -43,3 +43,8 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# Android signing — las credenciales de firma nunca van al repo.
+android/key.properties
+*.keystore
+*.jks
