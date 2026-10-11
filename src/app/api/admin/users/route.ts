@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyToken, isAdminUser } from '@/lib/auth-server';
+import { logAudit } from '@/lib/audit';
 
 export async function GET(request: NextRequest) {
   try {
@@ -47,6 +48,11 @@ export async function PATCH(request: NextRequest) {
         ...(is_active !== undefined ? { is_active } : {}),
         updated_at: new Date(),
       },
+    });
+
+    await logAudit({
+      userId: user!.id, action: 'user.update', entityType: 'users', entityId: id,
+      metadata: { role, is_active }, request,
     });
 
     return NextResponse.json(updated);

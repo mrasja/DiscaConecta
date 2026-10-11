@@ -48,7 +48,7 @@ const STEPS_PROFESIONAL = [
   },
 ];
 
-const KEY = 'discapp_onboarding_done_v2';
+const KEY = 'discaconecta_onboarding_done_v2';
 
 export function OnboardingModal() {
   const { appUser } = useAuth();

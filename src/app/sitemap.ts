@@ -1,7 +1,7 @@
 import { MetadataRoute } from 'next';
 import { prisma } from '@/lib/prisma';
 
-const BASE = process.env.NEXT_PUBLIC_APP_URL || 'https://discapp.com.ar';
+const BASE = process.env.NEXT_PUBLIC_APP_URL || 'https://discaconecta.com.ar';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [professionals, centros] = await Promise.all([

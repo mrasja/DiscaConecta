@@ -3,7 +3,11 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ReactElement } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { useProfessionals, useCenters, useEscuelas, useMapProfessionals } from '@/hooks/useSearch';
+import { useProfessionals, useCenters, useEscuelas, useAsociaciones, useMapProfessionals, useMapCenters, useMapEscuelas, useMapAsociaciones, useMapAccessibilityReports } from '@/hooks/useSearch';
+import { DISCIPLINA_OPTIONS } from '@/types';
+import { AccessibilityReportForm } from '@/components/AccessibilityReportForm';
+import { LogoMark } from '@/components/Logo';
+import { ADMIN_EMAILS } from '@/lib/admin';
 import { useAuth } from '@/context/AuthContext';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 import type { SearchFilters, Professional, Center } from '@/types';
@@ -38,7 +42,7 @@ const DISABILITY_OPTIONS = [
 ] as const;
 
 const PROFESSION_OPTIONS = [
-  { value: 'acompañante_terapeutico', label: 'Acompañante terapéutico' },
+  { value: 'acompanante_terapeutico', label: 'Acompañante terapéutico' },
   { value: 'enfermera',               label: 'Enfermera/o' },
   { value: 'docente_especial',        label: 'Docente especial' },
   { value: 'psicologo',               label: 'Psicólogo/a' },
@@ -67,8 +71,6 @@ const DEFAULT_FILTERS: SearchFilters = {
   radiusKm: 50,
 };
 
-const ADMIN_EMAILS = ['m_rasja@hotmail.com', 'mrasja@gmail.com'];
-
 // Haptic feedback — usa @capacitor/haptics en Android, vibrate() como fallback
 async function haptic(style: 'light' | 'medium' = 'light') {
   try {
@@ -79,7 +81,7 @@ async function haptic(style: 'light' | 'medium' = 'light') {
   }
 }
 
-type TabId = 'profesionales' | 'escuelas' | 'centros' | 'mapa';
+type TabId = 'profesionales' | 'escuelas' | 'centros' | 'asociaciones' | 'mapa';
 
 const BOTTOM_TABS: { id: TabId; label: string; icon: (active: boolean) => ReactElement }[] = [
   {
@@ -110,6 +112,15 @@ const BOTTOM_TABS: { id: TabId; label: string; icon: (active: boolean) => ReactE
     ),
   },
   {
+    id: 'asociaciones',
+    label: 'Asociaciones',
+    icon: (active) => (
+      <svg className="w-6 h-6" fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 0 : 1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+      </svg>
+    ),
+  },
+  {
     id: 'mapa',
     label: 'Mapa',
     icon: (active) => (
@@ -122,7 +133,7 @@ const BOTTOM_TABS: { id: TabId; label: string; icon: (active: boolean) => ReactE
 
 export default function AlumnoSearchPage() {
   const router = useRouter();
-  const { appUser } = useAuth();
+  const { appUser, token } = useAuth();
   const queryClient = useQueryClient();
   const isAdmin = !!appUser && (appUser.role === 'admin' || ADMIN_EMAILS.includes((appUser as any).email));
 
@@ -147,21 +158,28 @@ export default function AlumnoSearchPage() {
       school:         undefined,
       sector:         undefined,
       nivel:          undefined,
+      disciplina:     undefined,
     }));
   };
 
   const { toast } = useToast();
   const { recent: recentCities, addSearch: addRecentCity } = useRecentSearches();
 
-  const [selected, setSelected] = useState<{ type: 'professional' | 'center' | 'escuela'; data: any } | null>(null);
+  const [selected, setSelected] = useState<{ type: 'professional' | 'center' | 'escuela' | 'accessibility' | 'asociacion'; data: any } | null>(null);
   const [mapKey, setMapKey] = useState(0);
   const [mapInitCenter, setMapInitCenter] = useState({ lat: -34.6037, lng: -58.3816 });
   const [mapInitZoom,   setMapInitZoom]   = useState(12);
-  const [mapLayers, setMapLayers] = useState({ profesionales: true, centros: true, escuelas: true });
+  const [mapLayers, setMapLayers] = useState({ profesionales: true, centros: true, escuelas: true, accesibilidad: true, asociaciones: true });
   const toggleLayer = (key: keyof typeof mapLayers) =>
     setMapLayers(prev => ({ ...prev, [key]: !prev[key] }));
 
-  const goToMap = (lat: number, lng: number, item: any, type: 'professional' | 'center' | 'escuela') => {
+  const [reportMode, setReportMode] = useState(false);
+  const [pendingReportPos, setPendingReportPos] = useState<{ lat: number; lng: number } | null>(null);
+
+  // Filtros independientes para el mapa — se actualizan al mover el mapa
+  const [mapFilters, setMapFilters] = useState<SearchFilters>(DEFAULT_FILTERS);
+
+  const goToMap = (lat: number, lng: number, item: any, type: 'professional' | 'center' | 'escuela' | 'asociacion') => {
     setMapInitCenter({ lat, lng });
     setMapInitZoom(15);
     setMapKey(k => k + 1);
@@ -183,10 +201,83 @@ export default function AlumnoSearchPage() {
   const centers = centerPages?.pages.flat() ?? [];
 
   const { data: escuelas = [], isLoading: loadingEscuelas } = useEscuelas(filters);
-  const { data: mapProfessionals = [] } = useMapProfessionals(filters, tab === 'mapa');
+
+  const {
+    data: asociacionPages, isLoading: loadingAsociaciones,
+    fetchNextPage: fetchMoreAsociaciones, hasNextPage: hasMoreAsociaciones, isFetchingNextPage: loadingMoreAsociaciones,
+  } = useAsociaciones(filters);
+  const asociaciones = asociacionPages?.pages.flat() ?? [];
+
+  const isMapTab = tab === 'mapa';
+  const { data: mapProfessionals = [], isFetching: fetchingMapProf } = useMapProfessionals(mapFilters, isMapTab);
+  const { data: mapCenters = [],       isFetching: fetchingMapCent } = useMapCenters(mapFilters, isMapTab);
+  const { data: mapEscuelas = [],      isFetching: fetchingMapEsc  } = useMapEscuelas(mapFilters, isMapTab);
+  const { data: mapAsociaciones = [],  isFetching: fetchingMapAsoc } = useMapAsociaciones(mapFilters, isMapTab);
+  const { data: mapAccessibilityReports = [], isFetching: fetchingMapAccess } =
+    useMapAccessibilityReports(mapFilters, isMapTab, token);
+  const isFetchingMap = fetchingMapProf || fetchingMapCent || fetchingMapEsc || fetchingMapAsoc || fetchingMapAccess;
+
+  // Encuadrar el mapa en los resultados cuando el usuario busca por ciudad/provincia/radio.
+  // Dos etapas: (1) esperar a que el usuario deje de tocar los campos de búsqueda
+  // (si cambia ciudad y provincia casi juntas, cuentan como una sola búsqueda), y
+  // (2) recién ahí vigilar isFetchingMap hasta que las 4 queries del mapa terminen.
+  // Sin la etapa 1, un settle intermedio (ciudad ya cambiada, provincia todavía no)
+  // podía disparar el encuadre con resultados vacíos/parciales.
+  const searchInputDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const searchPendingRef = useRef(false);
+  const [fitBoundsTrigger, setFitBoundsTrigger] = useState(0);
+  useEffect(() => {
+    if (!searchPendingRef.current || isFetchingMap) return;
+    searchPendingRef.current = false;
+    setFitBoundsTrigger(v => v + 1);
+  }, [mapProfessionals, mapCenters, mapEscuelas, mapAsociaciones, isFetchingMap]);
+
+  const toggleReportMode = () => {
+    if (!appUser) { toast('Iniciá sesión para reportar accesibilidad', 'info'); return; }
+    haptic('light');
+    setReportMode(v => !v);
+  };
+
+  const handleMapClickToReport = (pos: { lat: number; lng: number }) => {
+    setPendingReportPos(pos);
+    setReportMode(false);
+  };
+
+  const handleVote = async (reportId: string, vote: 1 | -1) => {
+    if (!token) { toast('Iniciá sesión para votar', 'info'); return; }
+    const res = await fetch(`/api/accessibility-reports/${reportId}/vote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ vote }),
+    });
+    if (res.ok) {
+      await queryClient.invalidateQueries({ queryKey: ['accessibility-reports-map'] });
+    }
+  };
+
+  const handleReportCreated = () => {
+    setPendingReportPos(null);
+    queryClient.invalidateQueries({ queryKey: ['accessibility-reports-map'] });
+  };
 
   const updateFilter = (key: keyof SearchFilters, value: any) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    // Buscar por texto (ciudad/provincia) reemplaza el filtro de proximidad geográfica —
+    // si no se limpia lat/lng, el radio (anclado a la posición vieja) sigue aplicando
+    // en el WHERE del backend y descarta resultados reales de la ciudad nueva.
+    const clearsGeo = key === 'city' || key === 'province';
+    setFilters(prev => ({ ...prev, [key]: value, ...(clearsGeo ? { lat: undefined, lng: undefined } : {}) }));
+    // Mantener mapFilters sincronizado con ciudad/provincia/lat cuando el usuario busca
+    if (key === 'city' || key === 'province' || key === 'lat' || key === 'lng' || key === 'radiusKm') {
+      setMapFilters(prev => ({ ...prev, [key]: value, ...(clearsGeo ? { lat: undefined, lng: undefined } : {}) }));
+    }
+    // Búsqueda explícita por texto — una vez que el usuario deja de tocar estos campos
+    // y llegan los resultados, encuadrar el mapa (ver comentario arriba de searchPendingRef).
+    if (key === 'city' || key === 'province' || key === 'radiusKm') {
+      clearTimeout(searchInputDebounceRef.current);
+      searchInputDebounceRef.current = setTimeout(() => {
+        searchPendingRef.current = true;
+      }, 600);
+    }
     if (key === 'city' && typeof value === 'string' && value.length > 1) {
       addRecentCity(value);
     }
@@ -199,6 +290,7 @@ export default function AlumnoSearchPage() {
     try {
       const { lat, lng } = await getCurrentPosition();
       setFilters(prev => ({ ...prev, lat, lng, city: '', province: '' }));
+      setMapFilters(prev => ({ ...prev, lat, lng, city: '', radiusKm: 20 }));
       if (recenterMap || tab === 'mapa') {
         setMapInitCenter({ lat, lng });
         setMapInitZoom(14);
@@ -211,6 +303,10 @@ export default function AlumnoSearchPage() {
       setGeoLoading(false);
     }
   };
+
+  const handleMapMove = useCallback((center: { lat: number; lng: number }, radiusKm: number) => {
+    setMapFilters(prev => ({ ...prev, lat: center.lat, lng: center.lng, radiusKm, city: '' }));
+  }, []);
 
   const activeFilterCount = [
     filters.disabilityType, filters.profession, filters.centerType,
@@ -227,8 +323,8 @@ export default function AlumnoSearchPage() {
   // Auto-geolocalización en el primer uso (silenciosa)
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (localStorage.getItem('discapp_geo_asked')) return;
-    localStorage.setItem('discapp_geo_asked', '1');
+    if (localStorage.getItem('discaconecta_geo_asked')) return;
+    localStorage.setItem('discaconecta_geo_asked', '1');
     getCurrentPosition()
       .then(({ lat, lng }) => setFilters(prev => ({ ...prev, lat, lng, city: '', province: '' })))
       .catch(() => {}); // silencioso en el primer uso
@@ -259,10 +355,16 @@ export default function AlumnoSearchPage() {
 
   // Pull to refresh
   const pullStartY = useRef(0);
+  const lastRefreshRef = useRef(0);
   const handleTouchStart = (e: React.TouchEvent) => { pullStartY.current = e.touches[0].clientY; };
   const handleTouchEnd = async (e: React.TouchEvent) => {
     const delta = e.changedTouches[0].clientY - pullStartY.current;
-    if (delta > 80 && window.scrollY < 5) {
+    // Evita relanzar mientras ya hay un refresh en curso, o repetir por gestos de
+    // scroll consecutivos — si no, cada toque cerca del borde superior dispara otro
+    // refresh y otro toast, y da la sensación de que el cartel verde "no se borra".
+    const now = Date.now();
+    if (delta > 80 && window.scrollY < 5 && !refreshing && now - lastRefreshRef.current > 3000) {
+      lastRefreshRef.current = now;
       setRefreshing(true);
       haptic('medium');
       await queryClient.invalidateQueries();
@@ -316,7 +418,7 @@ export default function AlumnoSearchPage() {
             </select>
           </div>
           <div className="flex items-end">
-            <button onClick={handleGeolocate} disabled={geoLoading}
+            <button onClick={() => handleGeolocate()} disabled={geoLoading}
               aria-label="Usar mi ubicación actual"
               className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-colors disabled:opacity-50 whitespace-nowrap">
               <span aria-hidden="true">{geoLoading ? '⏳' : '📍'}</span>
@@ -326,8 +428,8 @@ export default function AlumnoSearchPage() {
         </div>
       </div>
 
-      {/* Tipo de discapacidad (solo profesionales) */}
-      {tab === 'profesionales' && (
+      {/* Tipo de discapacidad (profesionales y asociaciones) */}
+      {(tab === 'profesionales' || tab === 'asociaciones') && (
         <fieldset>
           <legend className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tipo de discapacidad</legend>
           <div className="flex flex-wrap gap-2">
@@ -448,6 +550,27 @@ export default function AlumnoSearchPage() {
           </label>
         </div>
       )}
+
+      {tab === 'asociaciones' && (
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Filtros de asociación</p>
+          <div>
+            <label htmlFor="filter-disciplina" className="block text-xs font-medium text-gray-500 mb-1">Disciplina</label>
+            <select id="filter-disciplina" value={filters.disciplina || ''}
+              onChange={e => updateFilter('disciplina', e.target.value || undefined)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+              <option value="">Todas las disciplinas</option>
+              {DISCIPLINA_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+            <input type="checkbox" checked={!!filters.isVerifiedOnly}
+              onChange={e => updateFilter('isVerifiedOnly', e.target.checked || undefined)}
+              className="rounded accent-indigo-600 w-4 h-4" style={{ minHeight: 'unset', minWidth: 'unset' }} />
+            Solo asociaciones verificadas ✓
+          </label>
+        </div>
+      )}
     </div>
   );
 
@@ -473,9 +596,9 @@ export default function AlumnoSearchPage() {
         style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-xs">D</span>
+            <LogoMark className="w-4 h-4" />
           </div>
-          <span className="text-lg font-bold text-gray-900">Discapp</span>
+          <span className="text-lg font-bold text-gray-900">DiscaConecta</span>
         </div>
         <div className="flex items-center gap-2">
           <DarkModeToggle />
@@ -485,30 +608,40 @@ export default function AlumnoSearchPage() {
               ← Inicio
             </button>
           )}
-          {/* Favoritos */}
-          <button onClick={() => router.push('/dashboard/favoritos')} aria-label="Mis favoritos"
-            className="w-8 h-8 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 no-min">
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
-            </svg>
-          </button>
-          {/* Mensajes con badge */}
-          <button onClick={() => router.push('/dashboard/mensajes')} aria-label={`Mensajes${unreadCount > 0 ? `, ${unreadCount} sin leer` : ''}`}
-            className="relative w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 no-min">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
-            </svg>
-            {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none no-min">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </button>
-          {/* Perfil */}
-          <button onClick={() => router.push('/dashboard/perfil')} aria-label="Ver mi perfil"
-            className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm no-min">
-            {((appUser as any)?.full_name || appUser?.fullName || 'U')[0].toUpperCase()}
-          </button>
+          {!appUser ? (
+            // Sin sesión: un solo CTA claro en vez de íconos que no llevan a nada sin cuenta.
+            <button onClick={() => router.push('/login')}
+              className="px-4 py-1.5 rounded-full text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors no-min">
+              Ingresar
+            </button>
+          ) : (
+            <>
+              {/* Favoritos */}
+              <button onClick={() => router.push('/dashboard/favoritos')} aria-label="Mis favoritos"
+                className="w-8 h-8 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 no-min">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
+                </svg>
+              </button>
+              {/* Mensajes con badge */}
+              <button onClick={() => router.push('/dashboard/mensajes')} aria-label={`Mensajes${unreadCount > 0 ? `, ${unreadCount} sin leer` : ''}`}
+                className="relative w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 no-min">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+                </svg>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none no-min">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+              {/* Perfil */}
+              <button onClick={() => router.push('/dashboard/perfil')} aria-label="Ver mi perfil"
+                className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm no-min">
+                {((appUser as any)?.full_name || appUser?.fullName || 'U')[0].toUpperCase()}
+              </button>
+            </>
+          )}
         </div>
       </header>
 
@@ -649,6 +782,35 @@ export default function AlumnoSearchPage() {
           </div>
         )}
 
+        {/* ASOCIACIONES */}
+        {tab === 'asociaciones' && (
+          <div role="tabpanel" id="panel-asociaciones" aria-labelledby="tab-asociaciones">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {loadingAsociaciones ? <SkeletonCards /> :
+               asociaciones?.map((a: any) => {
+                 const pos = parseLocation(a.location_text);
+                 return (
+                   <AssociationCard key={a.id} asociacion={a}
+                     onShowMap={pos ? () => goToMap(pos.lat, pos.lng, a, 'asociacion') : undefined} />
+                 );
+               })}
+              {!loadingAsociaciones && !asociaciones?.length &&
+               <EmptyState message="No se encontraron asociaciones con esos filtros"
+                 onBroaden={() => setFilters(prev => ({ ...prev, city: '', province: '', radiusKm: 300 }))} />}
+            </div>
+            {hasMoreAsociaciones && (
+              <div className="mt-6 flex justify-center">
+                <button onClick={() => fetchMoreAsociaciones()} disabled={loadingMoreAsociaciones}
+                  className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60 transition-colors no-min">
+                  {loadingMoreAsociaciones
+                    ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden="true" />Cargando…</>
+                    : `Cargar más asociaciones (${asociaciones.length} mostradas)`}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ESCUELAS */}
         {tab === 'escuelas' && (
           <div role="tabpanel" id="panel-escuelas" aria-labelledby="tab-escuelas"
@@ -719,8 +881,11 @@ export default function AlumnoSearchPage() {
         {tab === 'mapa' && (
           <MapTab
             professionals={mapProfessionals}
-            centers={centers}
-            escuelas={escuelas}
+            centers={mapCenters}
+            escuelas={mapEscuelas}
+            asociaciones={mapAsociaciones}
+            accessibilityReports={mapAccessibilityReports}
+            fitBoundsTrigger={fitBoundsTrigger}
             mapLayers={mapLayers}
             toggleLayer={toggleLayer}
             geoLoading={geoLoading}
@@ -731,10 +896,26 @@ export default function AlumnoSearchPage() {
             selected={selected}
             setSelected={setSelected}
             setTabRaw={setTabRaw}
+            reportMode={reportMode}
+            onToggleReportMode={toggleReportMode}
+            onMapClickToReport={handleMapClickToReport}
+            onVote={handleVote}
+            canVote={!!appUser}
             apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!}
+            onMapMove={handleMapMove}
+            isFetching={isFetchingMap}
           />
         )}
       </div>
+
+      {pendingReportPos && (
+        <AccessibilityReportForm
+          lat={pendingReportPos.lat}
+          lng={pendingReportPos.lng}
+          onClose={() => setPendingReportPos(null)}
+          onCreated={handleReportCreated}
+        />
+      )}
 
       {/* ── BOTTOM NAV (mobile only) ── */}
       <nav aria-label="Navegación principal"
@@ -814,9 +995,9 @@ function shareReferral(p: Professional) {
   const name = p.user?.fullName ?? 'este profesional';
   const prof = p.profession.replace(/_/g, ' ');
   const url  = `${window.location.origin}/profesional/${p.id}`;
-  const text = `Te recomiendo a ${name}, ${prof} en Discapp. Podés ver su perfil acá: ${url}`;
+  const text = `Te recomiendo a ${name}, ${prof} en DiscaConecta. Podés ver su perfil acá: ${url}`;
   if (navigator.share) {
-    navigator.share({ title: `Profesional en Discapp — ${name}`, text, url }).catch(() => {});
+    navigator.share({ title: `Profesional en DiscaConecta — ${name}`, text, url }).catch(() => {});
   } else {
     navigator.clipboard.writeText(text).then(() => alert('Link copiado al portapapeles'));
   }
@@ -972,6 +1153,76 @@ const CenterCard = ({ center: raw, onShowMap }: { center: Center; onShowMap?: ()
           Ver perfil
         </a>
         <FavoriteButton targetType="center" targetId={c.id} size="sm" />
+      </div>
+      {hasLocation && onShowMap && (
+        <button onClick={onShowMap}
+          className="mt-2 w-full text-center py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors no-min">
+          📍 Ver en mapa
+        </button>
+      )}
+    </article>
+  );
+};
+
+// ─── TARJETA ASOCIACIÓN ───────────────────────────────────────
+const AssociationCard = ({ asociacion: a, onShowMap }: { asociacion: any; onShowMap?: () => void }) => {
+  const name        = a.nombre;
+  const description = a.descripcion;
+  const disciplinas = a.disciplinas ?? [];
+  const city        = a.localidad;
+  const province    = a.provincia;
+  const phone       = a.telefono;
+  const whatsapp    = a.whatsapp;
+  const logoUrl     = a.logo_url;
+  const isVerified  = a.is_verified ?? false;
+  const hasLocation = !!a.location_text;
+
+  return (
+    <article className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow relative"
+      aria-label={`${name}, asociación, ${city}`}>
+      <div className="flex items-start gap-3 mb-3">
+        <div className="w-12 h-12 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0 overflow-hidden" aria-hidden="true">
+          {logoUrl
+            ? <Image src={logoUrl} alt="" width={48} height={48} className="w-full h-full object-cover" />
+            : <span className="text-2xl">🤝</span>
+          }
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="font-semibold text-gray-900 truncate">{name}</p>
+            {isVerified && <span className="text-blue-500 text-sm flex-shrink-0" aria-label="Asociación verificada">✓</span>}
+          </div>
+          <p className="text-xs text-gray-400">{city}, {province}</p>
+        </div>
+      </div>
+      {description && <p className="text-sm text-gray-600 mb-3 line-clamp-2">{description}</p>}
+      {disciplinas.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-3" aria-label="Disciplinas">
+          {disciplinas.slice(0, 3).map((d: string) => (
+            <span key={d} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded-full">{d}</span>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2">
+        {phone && (
+          <a href={`tel:${phone}`} aria-label={`Llamar a ${name}`}
+            className="flex-1 text-center py-2 bg-gray-50 text-gray-700 text-sm rounded-lg hover:bg-gray-100">
+            📞 {phone}
+          </a>
+        )}
+        {whatsapp && (
+          <a href={`https://wa.me/${whatsapp.replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer"
+            aria-label={`WhatsApp de ${name}`}
+            className="flex-1 text-center py-2 bg-green-50 text-green-700 text-sm rounded-lg hover:bg-green-100">
+            WhatsApp
+          </a>
+        )}
+        <a href={`/asociacion/${a.id}`}
+          className="px-3 py-2 bg-emerald-50 text-emerald-600 text-sm rounded-lg hover:bg-emerald-100 transition-colors"
+          aria-label={`Ver perfil completo de ${name}`}>
+          Ver perfil
+        </a>
+        <FavoriteButton targetType="association" targetId={a.id} size="sm" />
       </div>
       {hasLocation && onShowMap && (
         <button onClick={onShowMap}

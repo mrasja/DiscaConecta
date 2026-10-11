@@ -24,7 +24,7 @@ describe('POST /api/reviews', () => {
     vi.mocked(verifyToken).mockResolvedValue(null as any);
     const req = new NextRequest('http://localhost/api/reviews', {
       method: 'POST',
-      body: JSON.stringify({ target_type: 'professional', target_id: 'x', rating: 5 }),
+      body: JSON.stringify({ target_type: 'professional', target_id: '11111111-1111-4111-8111-111111111111', rating: 5 }),
     });
     const res = await POST(req);
     expect(res.status).toBe(401);
@@ -35,7 +35,7 @@ describe('POST /api/reviews', () => {
     vi.mocked(prisma.reviews.findFirst).mockResolvedValue(null);
     const req = new NextRequest('http://localhost/api/reviews', {
       method: 'POST',
-      body: JSON.stringify({ target_type: 'professional', target_id: 'x', rating: 10 }),
+      body: JSON.stringify({ target_type: 'professional', target_id: '11111111-1111-4111-8111-111111111111', rating: 10 }),
     });
     const res = await POST(req);
     expect(res.status).toBe(400);
@@ -47,7 +47,7 @@ describe('POST /api/reviews', () => {
     vi.mocked(prisma.reviews.create).mockResolvedValue({ id: 'rev-1', rating: 5 } as any);
     const req = new NextRequest('http://localhost/api/reviews', {
       method: 'POST',
-      body: JSON.stringify({ target_type: 'professional', target_id: 'prof-1', rating: 5, comment: 'Excelente' }),
+      body: JSON.stringify({ target_type: 'professional', target_id: '22222222-2222-4222-8222-222222222222', rating: 5, comment: 'Excelente' }),
     });
     const res = await POST(req);
     expect(res.status).toBe(201);

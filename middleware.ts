@@ -1,15 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Rate limiting — activo solo si hay Upstash configurado en env
 let ratelimit: { limit: (id: string) => Promise<{ success: boolean }> } | null = null;
 
 if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+  // Rate limiting distribuido — recomendado para producción (persiste entre
+  // instancias/regiones). Configurar UPSTASH_REDIS_REST_URL/TOKEN en el .env.
   const { Ratelimit } = require('@upstash/ratelimit');
   const { Redis }     = require('@upstash/redis');
   ratelimit = new Ratelimit({
     redis:   Redis.fromEnv(),
     limiter: Ratelimit.slidingWindow(60, '1 m'), // 60 req/min por IP
   });
+} else {
+  // Fallback en memoria mientras no haya Upstash configurado: más débil (se
+  // reinicia en cada cold start y no se comparte entre instancias), pero es
+  // mejor que no tener ningún límite en producción por falta de credenciales.
+  const hits = new Map<string, { count: number; resetAt: number }>();
+  const WINDOW_MS = 60_000;
+  const MAX_REQUESTS = 60; // 60 req/min por IP o usuario, igual que el límite de Upstash
+
+  ratelimit = {
+    limit: async (id: string) => {
+      const now = Date.now();
+      const entry = hits.get(id);
+      if (!entry || now > entry.resetAt) {
+        hits.set(id, { count: 1, resetAt: now + WINDOW_MS });
+        return { success: true };
+      }
+      entry.count++;
+      return { success: entry.count <= MAX_REQUESTS };
+    },
+  };
+
+  // Evita que el Map crezca sin límite en procesos de larga duración.
+  const cleanup = setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of hits) if (now > entry.resetAt) hits.delete(key);
+  }, 5 * 60_000);
+  (cleanup as unknown as { unref?: () => void }).unref?.();
 }
 
 function extractUserId(request: NextRequest): string | null {

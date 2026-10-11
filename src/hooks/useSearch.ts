@@ -63,6 +63,43 @@ export const useCenters = (filters: SearchFilters) =>
 
 export const useCentrosTerapeuticos = useCenters;
 
+// ── Asociaciones con paginación infinita ──────────────────────
+export const useAsociaciones = (filters: SearchFilters) =>
+  useInfiniteQuery({
+    queryKey: ['asociaciones', filters],
+    queryFn: async ({ pageParam = 0 }) => {
+      const p = buildParams(filters, {
+        disciplina:     filters.disciplina     || '',
+        disabilityType: filters.disabilityType || '',
+        isVerifiedOnly: filters.isVerifiedOnly ? 'true' : '',
+        limit:          String(PAGE_SIZE),
+        offset:         String(pageParam),
+      });
+      const res = await fetch(`/api/asociaciones?${p}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage: any[], allPages) =>
+      lastPage.length === PAGE_SIZE ? allPages.length * PAGE_SIZE : undefined,
+    staleTime: 5 * 60 * 1000,
+    enabled: true,
+  });
+
+// ── Asociaciones para el mapa (sin paginar) ────────────────────
+export const useMapAsociaciones = (filters: SearchFilters, enabled: boolean) =>
+  useQuery({
+    queryKey: ['asociaciones-map', filters],
+    queryFn: async () => {
+      const p = buildParams(filters, { limit: '150', offset: '0' });
+      const res = await fetch(`/api/asociaciones?${p}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: enabled && (!!filters.city || !!filters.lat),
+  });
+
 // ── Escuelas (sin paginar — dataset estático grande) ──────────
 export const useEscuelas = (filters: SearchFilters) =>
   useQuery({
@@ -100,6 +137,50 @@ export const useMapProfessionals = (filters: SearchFilters, enabled: boolean) =>
       return res.json();
     },
     staleTime: 5 * 60 * 1000,
+    enabled: enabled && (!!filters.city || !!filters.lat),
+  });
+
+// ── Centros para el mapa (sin paginar, basado en centro del mapa) ──
+export const useMapCenters = (filters: SearchFilters, enabled: boolean) =>
+  useQuery({
+    queryKey: ['centers-map', filters],
+    queryFn: async () => {
+      const p = buildParams(filters, { limit: '150', offset: '0' });
+      const res = await fetch(`/api/centros?${p}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: enabled && (!!filters.city || !!filters.lat),
+  });
+
+// ── Escuelas para el mapa (sin paginar, basado en centro del mapa) ──
+export const useMapEscuelas = (filters: SearchFilters, enabled: boolean) =>
+  useQuery({
+    queryKey: ['escuelas-map', filters],
+    queryFn: async () => {
+      const p = buildParams(filters, { limit: '150', offset: '0' });
+      const res = await fetch(`/api/escuelas?${p}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: enabled && (!!filters.city || !!filters.lat),
+  });
+
+// ── Reportes de accesibilidad para el mapa colaborativo (sin paginar) ──
+export const useMapAccessibilityReports = (filters: SearchFilters, enabled: boolean, token?: string | null) =>
+  useQuery({
+    queryKey: ['accessibility-reports-map', filters],
+    queryFn: async () => {
+      const p = buildParams(filters, { limit: '300', offset: '0' });
+      const res = await fetch(`/api/accessibility-reports?${p}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 2 * 60 * 1000,
     enabled: enabled && (!!filters.city || !!filters.lat),
   });
 

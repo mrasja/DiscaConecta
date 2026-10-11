@@ -1,5 +1,5 @@
 // ============================================================
-// DISCAPP — Recolector de Centros Terapéuticos via Google Places
+// DISCACONECTA — Recolector de Centros Terapéuticos via Google Places
 // Archivo: scripts/collect-centers.ts
 // Uso: npm run collect:centers
 //
@@ -115,7 +115,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log('\n🔍 DISCAPP — Recolector de Centros Terapéuticos\n');
+  console.log('\n🔍 DISCACONECTA — Recolector de Centros Terapéuticos\n');
   console.log(`📍 Ciudades: ${CIUDADES.length}`);
   console.log(`🔎 Queries: ${QUERIES.length}`);
   console.log(`📊 Requests estimados: ~${CIUDADES.length * QUERIES.length}\n`);

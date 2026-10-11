@@ -53,7 +53,7 @@ export function StarPicker({ value, onChange }: PickerProps) {
 }
 
 interface ModalProps {
-  targetType: 'professional' | 'center';
+  targetType: 'professional' | 'center' | 'association';
   targetId: string;
   targetName: string;
   onClose: () => void;

@@ -1,5 +1,5 @@
 // ============================================================
-// DISCAPP — Importador de Escuelas Especiales
+// DISCACONECTA — Importador de Escuelas Especiales
 // Archivo: scripts/import-schools.ts
 //
 // Columnas del Excel (padrón oficial Ministerio de Educación):
@@ -93,7 +93,7 @@ async function geocodificar(
 
 // ─── MAIN ─────────────────────────────────────────────────────
 async function main() {
-  console.log('\n🚀 DISCAPP — Importador de Escuelas Especiales');
+  console.log('\n🚀 DISCACONECTA — Importador de Escuelas Especiales');
   console.log('─'.repeat(55));
 
   // Leer Excel

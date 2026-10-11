@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import type { SearchFilters } from '@/types';
 
-const KEY = 'discapp_last_search';
+const KEY = 'discaconecta_last_search';
 
 export function saveLastSearch(filters: SearchFilters) {
   try {

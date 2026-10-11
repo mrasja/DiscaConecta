@@ -1,5 +1,5 @@
 // ============================================================
-// DISCAPP — Geocodificar escuelas sin coordenadas
+// DISCACONECTA — Geocodificar escuelas sin coordenadas
 // Archivo: scripts/geocode-schools.ts
 // Uso: npx tsx scripts/geocode-schools.ts
 //
@@ -21,7 +21,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log('\n📍 DISCAPP — Geocodificador de escuelas');
+  console.log('\n📍 DISCACONECTA — Geocodificador de escuelas');
   console.log('─'.repeat(45));
 
   // Contar totales

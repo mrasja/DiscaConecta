@@ -1,7 +1,7 @@
 'use client';
 import { useState, useCallback } from 'react';
 
-const KEY = 'discapp_recent_cities';
+const KEY = 'discaconecta_recent_cities';
 const MAX = 5;
 
 function load(): string[] {

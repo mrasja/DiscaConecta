@@ -1,5 +1,5 @@
 'use client';
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 
 type ToastType = 'success' | 'error' | 'info';
 interface ToastItem { id: number; message: string; type: ToastType; }
@@ -20,9 +20,12 @@ const ICON: Record<ToastType, string> = {
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const nextIdRef = useRef(0);
 
   const toast = useCallback((message: string, type: ToastType = 'success') => {
-    const id = Date.now();
+    // Contador propio en vez de Date.now(): dos toasts en el mismo milisegundo
+    // (llamadas seguidas, gestos repetidos) compartirían id y se borrarían entre sí.
+    const id = ++nextIdRef.current;
     setToasts(prev => [...prev, { id, message, type }]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3200);
   }, []);

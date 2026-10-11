@@ -9,6 +9,7 @@ import { StarDisplay, ReviewModal } from '@/components/ReviewStars';
 import { MapPin, CheckCircle, Briefcase, Calendar } from 'lucide-react';
 import { ReviewsSection } from '@/components/ReviewsSection';
 import { BackHeader } from '@/components/BackHeader';
+import { buildMatriculaSearchUrl } from '@/lib/matricula-verification';
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -18,8 +19,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   });
   if (!prof) return { title: 'Profesional no encontrado' };
     return {
-    title: `${prof.user?.full_name ?? 'Profesional'} — Discapp`,
-    description: prof.bio || `${prof.profession} en Discapp`,
+    title: `${prof.user?.full_name ?? 'Profesional'} — DiscaConecta`,
+    description: prof.bio || `${prof.profession} en DiscaConecta`,
     openGraph: {
         images: prof.user?.avatar_url ? [prof.user.avatar_url] : [],
     }
@@ -41,7 +42,7 @@ export default async function ProfessionalProfilePage({ params }: { params: Prom
   const profileUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/profesional/${id}`;
 
   const PROFESSION_LABELS: Record<string, string> = {
-    acompañante_terapeutico: 'Acompañante Terapéutico',
+    acompanante_terapeutico: 'Acompañante Terapéutico',
     enfermera: 'Enfermera/o',
     docente_especial: 'Docente de Educación Especial',
     psicologo: 'Psicólogo/a',
@@ -78,7 +79,7 @@ export default async function ProfessionalProfilePage({ params }: { params: Prom
           <ShareButton
             url={profileUrl}
             title={prof.user?.full_name ?? 'Profesional'}
-            text={`Mirá el perfil de ${prof.user?.full_name} en Discapp`}
+            text={`Mirá el perfil de ${prof.user?.full_name} en DiscaConecta`}
           />
         }
       />
@@ -113,7 +114,16 @@ export default async function ProfessionalProfilePage({ params }: { params: Prom
             </div>
             <p className="text-indigo-600 font-medium mt-0.5">{PROFESSION_LABELS[prof.profession]}</p>
             {prof.license_number && (
-              <p className="text-sm text-gray-400 mt-0.5">Mat. {prof.license_number}</p>
+              <div className="mt-0.5">
+                <p className="text-sm text-gray-400">Mat. {prof.license_number}</p>
+                <a
+                  href={buildMatriculaSearchUrl(prof.profession, prof.license_number, prof.province)}
+                  target="_blank" rel="noopener noreferrer"
+                  title="Te lleva a buscar el colegio profesional correspondiente — DiscaConecta no emite ni confirma matrículas"
+                  className="text-xs text-indigo-600 hover:text-indigo-800 underline underline-offset-2">
+                  Verificar esta matrícula →
+                </a>
+              </div>
             )}
             <div className="flex items-center gap-1 mt-1.5 text-sm text-gray-500">
               <MapPin className="w-3.5 h-3.5" />

@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { FavoriteButton } from '@/components/FavoriteButton';
 import { BackHeader } from '@/components/BackHeader';
@@ -20,9 +21,15 @@ interface FavoriteItem {
 }
 
 export default function FavoritosPage() {
-  const { token } = useAuth();
+  const { token, appUser, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [items, setItems]       = useState<FavoriteItem[]>([]);
   const [loading, setLoading]   = useState(true);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!appUser) { router.replace('/login'); return; }
+  }, [appUser, authLoading, router]);
 
   useEffect(() => {
     if (!token) return;
@@ -36,6 +43,14 @@ export default function FavoritosPage() {
 
   const backTo = typeof window !== 'undefined' && window.history.length > 1
     ? undefined : '/dashboard/alumno';
+
+  if (authLoading || !appUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

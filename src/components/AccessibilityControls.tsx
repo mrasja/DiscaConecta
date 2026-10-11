@@ -8,8 +8,8 @@ export function AccessibilityControls() {
   const [fontSize, setFontSizeState] = useState<FontSize>('md');
 
   useEffect(() => {
-    const storedHc   = localStorage.getItem('discapp_hc') === 'true';
-    const storedFont = (localStorage.getItem('discapp_font') as FontSize) || 'md';
+    const storedHc   = localStorage.getItem('discaconecta_hc') === 'true';
+    const storedFont = (localStorage.getItem('discaconecta_font') as FontSize) || 'md';
     setHc(storedHc);
     setFontSizeState(storedFont);
     document.documentElement.classList.toggle('hc', storedHc);
@@ -19,13 +19,13 @@ export function AccessibilityControls() {
   const toggleHc = () => {
     const next = !hc;
     setHc(next);
-    localStorage.setItem('discapp_hc', String(next));
+    localStorage.setItem('discaconecta_hc', String(next));
     document.documentElement.classList.toggle('hc', next);
   };
 
   const applyFont = (size: FontSize) => {
     setFontSizeState(size);
-    localStorage.setItem('discapp_font', size);
+    localStorage.setItem('discaconecta_font', size);
     document.documentElement.setAttribute('data-font', size);
   };
 

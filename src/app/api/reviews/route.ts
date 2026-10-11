@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { verifyToken } from '@/lib/auth-server';
+
+const ReviewSchema = z.object({
+  target_type: z.enum(['professional', 'center', 'association']),
+  target_id:   z.string().uuid(),
+  rating:      z.number().int().min(1).max(5),
+  comment:     z.string().trim().max(1000).optional().nullable(),
+});
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -26,9 +34,11 @@ export async function POST(request: NextRequest) {
   const user = await verifyToken(request);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
-  const { target_type, target_id, rating, comment } = await request.json();
-  if (!target_type || !target_id || !rating || rating < 1 || rating > 5)
-    return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
+  const parsed = ReviewSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Datos inválidos', details: parsed.error.flatten() }, { status: 400 });
+  }
+  const { target_type, target_id, rating, comment } = parsed.data;
 
   const existing = await prisma.reviews.findFirst({
     where: { reviewer_id: user.id, target_type, target_id },

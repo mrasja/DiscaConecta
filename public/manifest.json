@@ -1,6 +1,6 @@
 {
-  "name": "Discapp",
-  "short_name": "Discapp",
+  "name": "DiscaConecta",
+  "short_name": "DiscaConecta",
   "description": "Conectando personas con discapacidad con profesionales y centros especializados",
   "start_url": "/dashboard/alumno",
   "display": "standalone",

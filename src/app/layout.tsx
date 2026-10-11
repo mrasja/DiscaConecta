@@ -7,15 +7,17 @@ import { ServiceWorkerRegistrar } from '@/components/ServiceWorkerRegistrar';
 import { NotificationPermission } from '@/components/NotificationPermission';
 import { ToastProvider } from '@/context/ToastContext';
 import { OfflineBanner } from '@/components/OfflineBanner';
-import { Analytics } from '@vercel/analytics/react'; // activar después de: npm install
+import { ConsentBanner } from '@/components/ConsentBanner';
+import { ConditionalAnalytics } from '@/components/ConditionalAnalytics';
+import { TermsAcceptModal } from '@/components/TermsAcceptModal';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Discapp',
+  title: 'DiscaConecta',
   description: 'Conectando personas, transformando vidas',
   manifest: '/manifest.json',
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Discapp' },
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'DiscaConecta' },
   other: { 'mobile-web-app-capable': 'yes' },
 };
 
@@ -42,9 +44,11 @@ export default function RootLayout({
             <ToastProvider>
               {children}
             </ToastProvider>
+            <TermsAcceptModal />
           </AuthProvider>
         </QueryClientProviderWrapper>
-        <Analytics />
+        <ConsentBanner />
+        <ConditionalAnalytics />
       </body>
     </html>
   );

@@ -1,12 +1,14 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId:   'com.discapp.app',
-  appName: 'Discapp',
+  appId:   'com.discaconecta.app',
+  appName: 'DiscaConecta',
   webDir:  'out',
   server: {
-    //url:       'http://10.0.2.2:3000', 
-    url: 'http://192.168.0.15:3000', 
+    //url:       'http://10.0.2.2:3000/dashboard',
+    // /dashboard (no la landing "/") — reparte según sesión: sin cuenta va al
+    // buscador público, alumno/profesional van directo a su panel.
+    url: 'http://192.168.0.33:3000/dashboard',
     cleartext: true,
   },
   plugins: {

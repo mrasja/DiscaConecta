@@ -5,8 +5,15 @@ import { useAuth } from '@/context/AuthContext';
 import { BackHeader } from '@/components/BackHeader';
 import { uploadVerificationDoc } from '@/lib/firebase-storage';
 import Image from 'next/image';
+import type { ProfessionType } from '@/types';
 
-const PROFESIONES = [
+// Tipado contra ProfessionType a propósito: un value que no coincida con el
+// resto de la app (filtros de búsqueda, etiquetas de perfil, verificación de
+// matrícula) ahora es un error de compilación en vez de un profesional que
+// desaparece silenciosamente de las búsquedas por profesión.
+// Ojo: 'acompanante_terapeutico' va SIN tilde — así lo exige el CHECK
+// constraint de la columna `profession` en la base.
+const PROFESIONES: { value: ProfessionType; label: string }[] = [
   { value: 'acompanante_terapeutico', label: 'Acompañante Terapéutico (AT)' },
   { value: 'enfermera',               label: 'Enfermera/o' },
   { value: 'docente_especial',        label: 'Docente de Educación Especial' },
@@ -465,7 +472,7 @@ export default function RegistrarseProPage() {
               <p className="text-sm font-semibold text-amber-800">¿Por qué pedimos esto?</p>
               <p className="text-xs text-amber-700 mt-1">
                 Para proteger a las familias, verificamos que sos una persona real con matrícula válida.
-                Tus documentos se almacenan de forma segura y solo los ve el equipo de Discapp.
+                Tus documentos se almacenan de forma segura y solo los ve el equipo de DiscaConecta.
               </p>
             </div>
           )}

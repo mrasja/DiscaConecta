@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 
 interface Props {
-  targetType: 'professional' | 'center';
+  targetType: 'professional' | 'center' | 'association';
   targetId: string;
   initialFavorited?: boolean;
   size?: 'sm' | 'md';

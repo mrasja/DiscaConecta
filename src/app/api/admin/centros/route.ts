@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyToken, isAdminUser } from '@/lib/auth-server';
+import { logAudit } from '@/lib/audit';
 
 export async function GET(request: NextRequest) {
   try {
@@ -35,6 +36,11 @@ export async function PATCH(request: NextRequest) {
     const updated = await prisma.centros_terapeuticos.update({
       where: { id },
       data: { is_verified, updated_at: new Date() },
+    });
+
+    await logAudit({
+      userId: user!.id, action: 'centro.update', entityType: 'centros_terapeuticos', entityId: id,
+      metadata: { is_verified }, request,
     });
 
     return NextResponse.json(updated);

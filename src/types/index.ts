@@ -1,6 +1,9 @@
 export type UserRole = 'alumno' | 'profesional' | 'admin';
 export type DisabilityType = 'visual' | 'auditiva' | 'motriz' | 'intelectual' | 'tea' | 'multiple' | 'otra';
-export type ProfessionType = 'acompañante_terapeutico' | 'enfermera' | 'docente_especial' | 'psicologo' | 'fonoaudiologo' | 'otro';
+// 'acompanante_terapeutico' (sin tilde) — así está definido el CHECK constraint
+// de la columna `profession` en la base (professionals_profession_check). No es
+// un typo: cambiarlo acá sin migrar la base rompe cualquier insert/update real.
+export type ProfessionType = 'acompanante_terapeutico' | 'enfermera' | 'docente_especial' | 'psicologo' | 'fonoaudiologo' | 'otro';
 export type CenterType = 'escuela_especial' | 'centro_terapeutico' | 'rehabilitacion' | 'integracion' | 'otro';
 
 export interface GeoPoint { lat: number; lng: number; }
@@ -83,6 +86,77 @@ export interface Center {
   location_text?: string; 
 }
 
+export type AccessibilityCategory = 'barrera' | 'acceso_positivo' | 'servicio';
+
+export const ACCESSIBILITY_SUBTYPES: Record<AccessibilityCategory, { value: string; label: string }[]> = {
+  barrera: [
+    { value: 'vereda_rota',        label: 'Vereda rota o en mal estado' },
+    { value: 'sin_rampa',          label: 'Sin rampa' },
+    { value: 'escalon_sin_salvar', label: 'Escalón sin salvar' },
+    { value: 'obra_bloquea_paso',  label: 'Obra que bloquea el paso' },
+    { value: 'otro_barrera',       label: 'Otra barrera' },
+  ],
+  acceso_positivo: [
+    { value: 'rampa_buen_estado',      label: 'Rampa en buen estado' },
+    { value: 'entrada_sin_escalones',  label: 'Entrada sin escalones' },
+    { value: 'bano_accesible',         label: 'Baño accesible' },
+    { value: 'semaforo_sonoro',        label: 'Semáforo sonoro' },
+    { value: 'piso_tactil',            label: 'Piso táctil / podotáctil' },
+    { value: 'otro_positivo',          label: 'Otro acceso positivo' },
+  ],
+  servicio: [
+    { value: 'estacionamiento_reservado',    label: 'Estacionamiento reservado' },
+    { value: 'parada_transporte_accesible',  label: 'Parada de transporte accesible' },
+    { value: 'ascensor',                     label: 'Ascensor' },
+    { value: 'otro_servicio',                label: 'Otro servicio' },
+  ],
+};
+
+export interface AccessibilityReport {
+  id: string;
+  reporter_id?: string | null;
+  category: AccessibilityCategory;
+  subtype: string;
+  description?: string | null;
+  photo_url?: string | null;
+  location_text?: string | null;
+  address?: string | null;
+  upvotes: number;
+  downvotes: number;
+  is_active?: boolean;
+  created_at?: string;
+  my_vote?: 1 | -1 | null;
+}
+
+export const DISCIPLINA_OPTIONS = [
+  'Básquet en silla de ruedas', 'Natación adaptada', 'Atletismo adaptado',
+  'Goalball', 'Boccia', 'Ciclismo adaptado', 'Tenis adaptado', 'Esgrima en silla',
+  'Fútbol para ciegos', 'Rugby en silla de ruedas', 'Otra',
+] as const;
+
+export interface Asociacion {
+  id: string;
+  ownerUserId?: string | null;
+  nombre: string;
+  descripcion?: string;
+  disciplinas: string[];
+  tiposDiscapacidad: DisabilityType[];
+  domicilio: string;
+  barrio?: string;
+  localidad: string;
+  provincia: string;
+  location?: GeoPoint;
+  telefono?: string;
+  email?: string;
+  whatsapp?: string;
+  website?: string;
+  logoUrl?: string;
+  fotos: string[];
+  isVerified: boolean;
+  isActive: boolean;
+  location_text?: string;
+}
+
 export interface SearchFilters {
   zone?: string;
   city?: string;
@@ -101,4 +175,5 @@ export interface SearchFilters {
   lng?: number;
   nombreProfesional?: string;
   obraSocial?: string;
+  disciplina?: string;
 }

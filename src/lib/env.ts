@@ -26,7 +26,7 @@ function validateEnv() {
 
   if (missing.length > 0) {
     throw new Error(
-      `[Discapp] Missing required environment variables:\n  ${missing.join('\n  ')}\n` +
+      `[DiscaConecta] Missing required environment variables:\n  ${missing.join('\n  ')}\n` +
       'Add them to your .env.local or deployment environment.',
     );
   }

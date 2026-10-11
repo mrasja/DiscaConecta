@@ -2,8 +2,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-
-const ADMIN_EMAILS = ['m_rasja@hotmail.com', 'mrasja@gmail.com'];
+import { LogoMark } from '@/components/Logo';
+import { ADMIN_EMAILS } from '@/lib/admin';
 
 export default function DashboardPage() {
   const { appUser, token, loading, isNewUser, refreshUser } = useAuth();
@@ -15,7 +15,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (loading) return;
-    if (!appUser) { router.replace('/login'); return; }
+    // Sin sesión: no forzamos login — el buscador ya es de acceso libre.
+    // Recién pedimos cuenta cuando el usuario intenta hacer algo que la necesite
+    // (guardar favoritos, escribir a un profesional, dejar una reseña, etc.).
+    if (!appUser) { router.replace('/dashboard/alumno'); return; }
     // Admins siempre ven el picker para elegir qué panel ver
     if (isAdmin) return;
     // Usuario nuevo → mostrar picker de rol
@@ -82,9 +85,9 @@ export default function DashboardPage() {
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">D</span>
+            <LogoMark className="w-5 h-5" />
           </div>
-          <span className="text-xl font-bold text-gray-900">Discapp</span>
+          <span className="text-xl font-bold text-gray-900">DiscaConecta</span>
         </div>
         {appUser && (
           <div className="flex items-center gap-2">
@@ -99,7 +102,7 @@ export default function DashboardPage() {
       <main id="main-content" className="max-w-2xl mx-auto px-6 py-12">
         <div className="text-center mb-10">
           <h2 className="text-3xl font-bold text-gray-900 mb-3">
-            {isAdmin ? '¿Qué panel querés ver?' : '¿Cómo vas a usar Discapp?'}
+            {isAdmin ? '¿Qué panel querés ver?' : '¿Cómo vas a usar DiscaConecta?'}
           </h2>
           <p className="text-gray-500">
             {isAdmin

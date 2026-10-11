@@ -1,11 +1,13 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { logout } from '@/lib/firebase';
 import { BackHeader } from '@/components/BackHeader';
 import { AvatarUpload } from '@/components/AvatarUpload';
 import { AccessibilityControls } from '@/components/AccessibilityControls';
+import { SecuritySettings } from '@/components/SecuritySettings';
 
 const DISABILITY_OPTIONS = [
   { value: 'visual',      label: 'Visual' },
@@ -24,8 +26,13 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 export default function PerfilPage() {
-  const { appUser, token, refreshUser } = useAuth();
+  const { appUser, token, refreshUser, loading: authLoading } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!appUser) router.replace('/login');
+  }, [appUser, authLoading, router]);
 
   const [editing, setEditing] = useState(false);
   const [nombre, setNombre]   = useState((appUser as any)?.full_name || appUser?.fullName || '');
@@ -40,6 +47,7 @@ export default function PerfilPage() {
     disabilityTypes: [] as string[],
     city: '', province: '', contactPhone: '', description: '',
     needsCompanion: false, needsNurse: false, isVisible: true,
+    sensitiveDataConsent: false, guardianDeclaration: false,
   });
   const [savingStudent, setSavingStudent] = useState(false);
 
@@ -59,13 +67,19 @@ export default function PerfilPage() {
             needsCompanion:  data.needs_companion || false,
             needsNurse:      data.needs_nurse || false,
             isVisible:       data.is_visible ?? true,
+            sensitiveDataConsent: !!data.sensitive_data_consent_at,
+            guardianDeclaration:  !!data.guardian_declaration,
           });
         }
       });
   }, [appUser?.role, token]);
 
+  const studentNeedsConsent = studentForm.disabilityTypes.length > 0;
+  const studentConsentMissing = studentNeedsConsent
+    && (!studentForm.sensitiveDataConsent || !studentForm.guardianDeclaration);
+
   const saveStudentProfile = async () => {
-    if (!token) return;
+    if (!token || studentConsentMissing) return;
     setSavingStudent(true);
     try {
       const res = await fetch('/api/students/me', {
@@ -123,6 +137,30 @@ export default function PerfilPage() {
     await refreshUser();
   };
 
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteConfirm, setDeleteConfirm]     = useState(false);
+  const [deleteReason, setDeleteReason]       = useState('');
+  const [deleteMsg, setDeleteMsg]             = useState('');
+
+  const handleDeleteRequest = async () => {
+    if (!token) return;
+    setDeletingAccount(true);
+    try {
+      const res = await fetch('/api/users/delete-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reason: deleteReason }),
+      });
+      const data = await res.json();
+      setDeleteMsg(data.message || 'Solicitud enviada.');
+      setDeleteConfirm(false);
+    } catch {
+      setDeleteMsg('Error al enviar la solicitud. Intentá de nuevo.');
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
   const handleLogout = async () => { await logout(); router.push('/login'); };
 
   const backTo = appUser?.role === 'profesional'
@@ -130,6 +168,14 @@ export default function PerfilPage() {
     : appUser?.role === 'admin'
     ? '/dashboard/admin'
     : '/dashboard/alumno';
+
+  if (authLoading || !appUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -226,6 +272,10 @@ export default function PerfilPage() {
               )
             ) : (
               <div className="space-y-4">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 leading-relaxed">
+                  Los datos de discapacidad son datos sensibles (Ley 25.326). Su carga es voluntaria y
+                  solo se usan para mejorar tu búsqueda de profesionales. Podés eliminarlos en cualquier momento.
+                </div>
                 <div>
                   <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Tipo de discapacidad</p>
                   <div className="flex flex-wrap gap-2">
@@ -278,8 +328,26 @@ export default function PerfilPage() {
                     Necesita enfermero/a
                   </label>
                 </div>
+                {studentNeedsConsent && (
+                  <div className="space-y-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <label className="flex items-start gap-2 text-xs text-amber-900 cursor-pointer">
+                      <input type="checkbox" checked={studentForm.sensitiveDataConsent}
+                        onChange={e => setStudentForm(p => ({ ...p, sensitiveDataConsent: e.target.checked }))}
+                        className="rounded accent-indigo-600 w-4 h-4 mt-0.5 flex-shrink-0" />
+                      <span>Presto mi <strong>consentimiento expreso</strong> para el tratamiento de los datos
+                        sensibles de discapacidad cargados en este perfil, conforme al art. 7 de la Ley 25.326.</span>
+                    </label>
+                    <label className="flex items-start gap-2 text-xs text-amber-900 cursor-pointer">
+                      <input type="checkbox" checked={studentForm.guardianDeclaration}
+                        onChange={e => setStudentForm(p => ({ ...p, guardianDeclaration: e.target.checked }))}
+                        className="rounded accent-indigo-600 w-4 h-4 mt-0.5 flex-shrink-0" />
+                      <span>Declaro ser <strong>mayor de edad</strong> o actuar en carácter de
+                        <strong> representante legal</strong> del alumno/a cuyos datos estoy cargando.</span>
+                    </label>
+                  </div>
+                )}
                 <div className="flex gap-2 pt-2">
-                  <button onClick={saveStudentProfile} disabled={savingStudent}
+                  <button onClick={saveStudentProfile} disabled={savingStudent || studentConsentMissing}
                     className="flex-1 bg-indigo-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
                     {savingStudent ? 'Guardando…' : 'Guardar perfil'}
                   </button>
@@ -299,21 +367,75 @@ export default function PerfilPage() {
         {/* Seguridad */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <h2 className="font-semibold text-gray-900 mb-4">Seguridad</h2>
-          <div className="space-y-3">
-            {[
-              { label: 'Doble factor (2FA)', desc: 'Google Authenticator, etc.' },
-              { label: 'Huella / Face ID', desc: 'Biometría del dispositivo (WebAuthn)' },
-            ].map(item => (
-              <div key={item.label} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                <div>
-                  <p className="text-sm font-medium text-gray-800">{item.label}</p>
-                  <p className="text-xs text-gray-400">{item.desc}</p>
+          <SecuritySettings />
+        </div>
+
+        {/* Datos y privacidad */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <h2 className="font-semibold text-gray-900 mb-4">Datos y privacidad</h2>
+          <div className="space-y-3 text-sm text-gray-600">
+            <Link href="/privacidad" target="_blank"
+              className="flex items-center justify-between py-2 border-b border-gray-50 hover:text-indigo-600 transition-colors">
+              <span>Política de Privacidad</span>
+              <span className="text-gray-400">→</span>
+            </Link>
+            <Link href="/terminos" target="_blank"
+              className="flex items-center justify-between py-2 border-b border-gray-50 hover:text-indigo-600 transition-colors">
+              <span>Términos y Condiciones</span>
+              <span className="text-gray-400">→</span>
+            </Link>
+            <a
+              href="/api/users/export"
+              download
+              onClick={async (e) => {
+                e.preventDefault();
+                const res = await fetch('/api/users/export', { headers: { Authorization: `Bearer ${token}` } });
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = `discaconecta-mis-datos-${Date.now()}.json`; a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="flex items-center justify-between py-2 border-b border-gray-50 hover:text-indigo-600 transition-colors cursor-pointer"
+            >
+              <span>Descargar mis datos (Ley 25.326)</span>
+              <span className="text-gray-400">↓</span>
+            </a>
+            <div className="py-2">
+              {!deleteConfirm && !deleteMsg && (
+                <button onClick={() => setDeleteConfirm(true)}
+                  className="text-red-500 hover:text-red-700 text-sm font-medium transition-colors">
+                  Solicitar eliminación de mis datos
+                </button>
+              )}
+              {deleteConfirm && (
+                <div className="space-y-3 mt-1">
+                  <p className="text-xs text-gray-500">
+                    Tu cuenta y datos serán eliminados en un plazo de 30 días hábiles, conforme a la Ley 25.326.
+                  </p>
+                  <textarea
+                    value={deleteReason}
+                    onChange={e => setDeleteReason(e.target.value)}
+                    placeholder="Motivo (opcional)"
+                    rows={2}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-red-400 focus:outline-none resize-none"
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={handleDeleteRequest} disabled={deletingAccount}
+                      className="flex-1 bg-red-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-red-600 disabled:opacity-50">
+                      {deletingAccount ? 'Enviando...' : 'Confirmar solicitud'}
+                    </button>
+                    <button onClick={() => setDeleteConfirm(false)}
+                      className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-200">
+                      Cancelar
+                    </button>
+                  </div>
                 </div>
-                <span className="text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded-full font-medium no-min">
-                  Próximamente
-                </span>
-              </div>
-            ))}
+              )}
+              {deleteMsg && (
+                <p className="text-sm text-green-600 leading-relaxed">{deleteMsg}</p>
+              )}
+            </div>
           </div>
         </div>
 

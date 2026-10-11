@@ -1,7 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { signInWithGoogle, signInWithEmail, registerWithEmail } from '@/lib/firebase';
+import Link from 'next/link';
+import { signInWithCustomToken } from 'firebase/auth';
+import { signInWithGoogle, signInWithEmail, registerWithEmail, auth } from '@/lib/firebase';
+import { startAuthentication } from '@simplewebauthn/browser';
 import { useAuth } from '@/context/AuthContext';
 
 export default function LoginPage() {
@@ -10,29 +13,86 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [name, setName]         = useState('');
   const [role, setRole]         = useState<'alumno' | 'profesional'>('alumno');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [ageConfirmed, setAgeConfirmed]   = useState(false);
   const [error, setError]           = useState('');
   const [errorField, setErrorField] = useState<'name' | 'email' | 'password' | null>(null);
   const [loading, setLoading]       = useState(false);
-  // Flag para bloquear la navegación automática mientras terminamos el registro
   const [registering, setRegistering] = useState(false);
+  // 2FA
+  const [pending2FA, setPending2FA]   = useState(false);
+  const [checking2FA, setChecking2FA] = useState(false);
+  const [otpCode, setOtpCode]         = useState('');
+  const [tempToken, setTempToken]     = useState('');
 
   const { appUser, loading: authLoading, refreshUser } = useAuth();
   const router = useRouter();
 
-  // Navegar al dashboard cuando el usuario esté listo (y no estemos en medio del registro)
   useEffect(() => {
-    if (authLoading || registering) return;
+    if (authLoading || registering || pending2FA || checking2FA) return;
     if (appUser) router.replace('/dashboard');
-  }, [appUser, authLoading, registering, router]);
+  }, [appUser, authLoading, registering, pending2FA, checking2FA, router]);
+
+  const check2FA = async (idToken: string): Promise<boolean> => {
+    const res = await fetch('/api/users/2fa', { headers: { Authorization: `Bearer ${idToken}` } });
+    if (!res.ok) return false;
+    const { enabled } = await res.json();
+    if (enabled) { setTempToken(idToken); setPending2FA(true); }
+    return enabled;
+  };
+
+  const verify2FA = async () => {
+    setLoading(true); setError('');
+    const res = await fetch('/api/users/2fa/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tempToken}` },
+      body: JSON.stringify({ otp: otpCode }),
+    });
+    if (!res.ok) { setError((await res.json()).error || 'Código inválido'); setLoading(false); return; }
+    setPending2FA(false);
+    setLoading(false);
+  };
+
+  const handlePasskeyLogin = async () => {
+    if (!email) { setError('Ingresá tu email primero'); return; }
+    setLoading(true); setChecking2FA(true); setError('');
+    try {
+      const optRes = await fetch('/api/auth/passkey/authenticate-options', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (!optRes.ok) throw new Error((await optRes.json()).error);
+      const authResponse = await startAuthentication({ optionsJSON: await optRes.json() });
+      const verifyRes = await fetch('/api/auth/passkey/authenticate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, response: authResponse }),
+      });
+      if (!verifyRes.ok) throw new Error((await verifyRes.json()).error);
+      const { customToken } = await verifyRes.json();
+      await signInWithCustomToken(auth, customToken);
+    } catch (e: any) {
+      setError(e.message || 'No se pudo autenticar con passkey');
+      setChecking2FA(false);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleGoogle = async () => {
-    setLoading(true); setError('');
+    setLoading(true); setChecking2FA(true); setError('');
     try {
       await signInWithGoogle();
-      // onAuthStateChanged se encarga del resto; la navegación ocurre via useEffect
+      const fbUser = auth.currentUser;
+      if (fbUser) {
+        const idToken = await fbUser.getIdToken();
+        await check2FA(idToken);
+      }
     } catch {
       setError('Error al iniciar sesión con Google');
-      setLoading(false);
+    } finally {
+      setLoading(false); setChecking2FA(false);
     }
   };
 
@@ -41,10 +101,18 @@ export default function LoginPage() {
     setLoading(true); setError(''); setErrorField(null);
     try {
       if (mode === 'login') {
+        setChecking2FA(true);
         await signInWithEmail(email, password);
-        // onAuthStateChanged + useEffect se encargan de navegar
+        const fbUser = auth.currentUser;
+        if (fbUser) {
+          const idToken = await fbUser.getIdToken();
+          await check2FA(idToken);
+        }
+        setChecking2FA(false);
       } else {
         if (!name.trim()) { setError('Ingresá tu nombre'); setErrorField('name'); setLoading(false); return; }
+        if (!acceptedTerms) { setError('Debés aceptar los Términos y la Política de Privacidad para continuar'); setLoading(false); return; }
+        if (!ageConfirmed) { setError('Debés confirmar que sos mayor de 13 años o representante legal'); setLoading(false); return; }
         setRegistering(true);
         const credential = await registerWithEmail(email, password);
         const idToken    = await credential.user.getIdToken();
@@ -52,14 +120,14 @@ export default function LoginPage() {
         await fetch('/api/users/me', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-          body: JSON.stringify({ full_name: name, role }),
+          body: JSON.stringify({ full_name: name, role, terms_accepted_at: new Date().toISOString() }),
         });
         await refreshUser();
         setRegistering(false);
         // La navegación la dispara el useEffect cuando registering = false y appUser está listo
       }
     } catch (e: any) {
-      setRegistering(false);
+      setRegistering(false); setChecking2FA(false);
       if (e?.code === 'auth/email-already-in-use') {
         setError('Ya existe una cuenta con ese email');
         setErrorField('email');
@@ -83,9 +151,37 @@ export default function LoginPage() {
           <div className="w-20 h-20 bg-indigo-600 rounded-2xl mx-auto flex items-center justify-center mb-4">
             <span className="text-white text-3xl font-bold">D</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Discapp</h1>
+          <h1 className="text-2xl font-bold text-gray-900">DiscaConecta</h1>
           <p className="text-gray-500 text-sm mt-1">Conectando personas, transformando vidas</p>
         </div>
+
+        {/* ── Paso 2FA ── */}
+        {pending2FA ? (
+          <div className="space-y-5">
+            <div className="text-center">
+              <div className="text-5xl mb-3">🔐</div>
+              <h2 className="text-lg font-bold text-gray-900">Verificación en dos pasos</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Ingresá el código de 6 dígitos de tu app autenticadora
+              </p>
+            </div>
+            <input
+              value={otpCode}
+              onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="000000" maxLength={6} autoFocus
+              className="w-full px-4 py-4 border border-gray-200 rounded-xl text-center text-2xl tracking-[0.5em] font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            />
+            {error && <p className="text-red-500 text-sm text-center bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+            <button onClick={verify2FA} disabled={loading || otpCode.length < 6}
+              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+              {loading ? 'Verificando...' : 'Verificar código'}
+            </button>
+            <button onClick={() => { setPending2FA(false); setOtpCode(''); setError(''); }}
+              className="w-full text-gray-500 text-sm hover:text-gray-700 py-2">
+              Cancelar y volver al inicio
+            </button>
+          </div>
+        ) : (<>
 
         {/* Tabs */}
         <div role="tablist" aria-label="Modo de acceso" className="flex rounded-lg bg-gray-100 p-1 mb-6">
@@ -154,12 +250,43 @@ export default function LoginPage() {
                 ${errorField === 'password' ? 'border-red-400' : 'border-gray-200'}`} />
           </div>
 
+          {mode === 'register' && (
+            <div className="space-y-3">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={e => setAcceptedTerms(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 shrink-0"
+                />
+                <span className="text-xs text-gray-600 leading-relaxed">
+                  Acepto los{' '}
+                  <Link href="/terminos" target="_blank" className="text-indigo-600 underline">Términos y Condiciones</Link>
+                  {' '}y la{' '}
+                  <Link href="/privacidad" target="_blank" className="text-indigo-600 underline">Política de Privacidad</Link>.
+                  Entiendo que la app puede almacenar datos sensibles de salud/discapacidad con mi consentimiento explícito.
+                </span>
+              </label>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={ageConfirmed}
+                  onChange={e => setAgeConfirmed(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 shrink-0"
+                />
+                <span className="text-xs text-gray-600 leading-relaxed">
+                  Soy mayor de 13 años o actúo como representante legal de un menor.
+                </span>
+              </label>
+            </div>
+          )}
+
           {error && (
             <p id="form-error" role="alert" aria-live="assertive"
               className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-lg">{error}</p>
           )}
 
-          <button type="submit" disabled={loading || registering}
+          <button type="submit" disabled={loading || registering || (mode === 'register' && (!acceptedTerms || !ageConfirmed))}
             aria-busy={loading || registering}
             className="w-full bg-indigo-600 text-white py-3 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">
             {loading || registering ? 'Cargando...' : mode === 'login' ? 'Ingresar' : 'Crear cuenta'}
@@ -184,10 +311,17 @@ export default function LoginPage() {
         </button>
 
         {mode === 'login' && (
-          <p className="text-center text-xs text-gray-400 mt-4">
-            Con Google podés elegir tu perfil en el siguiente paso.
-          </p>
+          <>
+            <p className="text-center text-xs text-gray-400 mt-4">
+              Con Google podés elegir tu perfil en el siguiente paso.
+            </p>
+            <button onClick={handlePasskeyLogin} disabled={loading || !email}
+              className="mt-3 w-full flex items-center justify-center gap-2 border border-gray-200 py-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-40 text-sm text-gray-600 font-medium">
+              <span>🔑</span> Ingresar con passkey (biometría)
+            </button>
+          </>
         )}
+        </> )}
       </div>
     </div>
   );

@@ -3,7 +3,9 @@ import { test, expect } from '@playwright/test';
 test.describe('Autenticación', () => {
   test('la página de login carga correctamente', async ({ page }) => {
     await page.goto('/login');
-    await expect(page.getByText('Discapp')).toBeVisible();
+    // getByText('DiscaConecta') es ambiguo: el banner de privacidad también dice "DiscaConecta
+    // recolecta datos...", así que apuntamos al heading específico.
+    await expect(page.getByRole('heading', { name: 'DiscaConecta' })).toBeVisible();
     await expect(page.getByRole('button', { name: /google/i })).toBeVisible();
   });
 
@@ -12,8 +14,8 @@ test.describe('Autenticación', () => {
     await expect(page).toHaveURL(/\/login/);
   });
 
-  test('redirige al login desde /dashboard sin sesión', async ({ page }) => {
+  test('sin sesión, /dashboard entra directo al buscador público (no fuerza login)', async ({ page }) => {
     await page.goto('/dashboard');
-    await expect(page).toHaveURL(/\/login/);
+    await expect(page).toHaveURL(/\/dashboard\/alumno/);
   });
 });

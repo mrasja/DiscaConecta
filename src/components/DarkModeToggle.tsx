@@ -5,7 +5,7 @@ export function DarkModeToggle({ className = '' }: { className?: string }) {
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem('discapp_dark');
+    const stored = localStorage.getItem('discaconecta_dark');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     const initial = stored !== null ? stored === 'true' : prefersDark;
     setDark(initial);
@@ -16,7 +16,7 @@ export function DarkModeToggle({ className = '' }: { className?: string }) {
     const next = !dark;
     setDark(next);
     document.documentElement.classList.toggle('dark', next);
-    localStorage.setItem('discapp_dark', String(next));
+    localStorage.setItem('discaconecta_dark', String(next));
   };
 
   return (

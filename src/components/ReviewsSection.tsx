@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { StarDisplay, ReviewModal } from '@/components/ReviewStars';
 
 interface Props {
-  targetType: 'professional' | 'center';
+  targetType: 'professional' | 'center' | 'association';
   targetId: string;
   targetName: string;
 }

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const professionalSchema = z.object({
-  profession:      z.enum(['acompañante_terapeutico','enfermera','docente_especial','psicologo','fonoaudiologo','otro']),
+  profession:      z.enum(['acompanante_terapeutico','enfermera','docente_especial','psicologo','fonoaudiologo','otro']),
   licenseNumber:   z.string().optional(),
   bio:             z.string().max(1000).optional(),
   specialties:     z.array(z.string()).min(1, 'Selecciona al menos una especialidad'),

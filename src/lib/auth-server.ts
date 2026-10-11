@@ -1,8 +1,7 @@
 import { NextRequest } from 'next/server';
 import { adminAuth } from './firebase-admin';
 import { prisma } from './prisma';
-
-const ADMIN_EMAILS = ['m_rasja@hotmail.com', 'mrasja@gmail.com'];
+import { isAdminEmail } from './admin';
 
 export async function verifyToken(request: NextRequest) {
   const authHeader = request.headers.get('Authorization');
@@ -17,5 +16,5 @@ export async function verifyToken(request: NextRequest) {
 
 export function isAdminUser(user: { role: string; email: string } | null): boolean {
   if (!user) return false;
-  return user.role === 'admin' || ADMIN_EMAILS.includes(user.email);
+  return user.role === 'admin' || isAdminEmail(user.email);
 }

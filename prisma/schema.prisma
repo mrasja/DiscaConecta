@@ -15,18 +15,40 @@ model users {
   avatar_url           String?
   role                 String
   fcm_token            String?
-  is_active            Boolean?               @default(true)
-  created_at           DateTime?              @default(now()) @db.Timestamptz(6)
-  updated_at           DateTime?              @default(now()) @db.Timestamptz(6)
-  audit_logs           audit_logs[]
-  centros_terapeuticos centros_terapeuticos[]
-  conversations_as_a   conversations[]        @relation("conv_participant_a")
-  conversations_as_b   conversations[]        @relation("conv_participant_b")
-  favorites            favorites[]
-  professionals        professionals[]
-  reviews              reviews[]
-  saved_searches       saved_searches[]
-  students             students[]
+  is_active                Boolean?               @default(true)
+  terms_accepted_at        DateTime?              @db.Timestamptz(6)
+  deletion_requested_at    DateTime?              @db.Timestamptz(6)
+  deletion_reason          String?
+  totp_secret              String?
+  totp_enabled             Boolean?               @default(false)
+  webauthn_challenge       String?
+  webauthn_challenge_exp   DateTime?              @db.Timestamptz(6)
+  created_at               DateTime?              @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime?              @default(now()) @db.Timestamptz(6)
+  audit_logs               audit_logs[]
+  centros_terapeuticos     centros_terapeuticos[]
+  conversations_as_a       conversations[]        @relation("conv_participant_a")
+  conversations_as_b       conversations[]        @relation("conv_participant_b")
+  favorites                favorites[]
+  professionals            professionals[]
+  reviews                  reviews[]
+  saved_searches           saved_searches[]
+  students                 students[]
+  webauthn_credentials     webauthn_credentials[]
+  accessibility_reports      accessibility_reports[]
+  accessibility_report_votes accessibility_report_votes[]
+  asociaciones                asociaciones[]
+}
+
+model webauthn_credentials {
+  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id       String    @db.Uuid
+  credential_id String    @unique
+  public_key    Bytes
+  counter       BigInt    @default(0)
+  device_name   String?
+  created_at    DateTime? @default(now()) @db.Timestamptz(6)
+  user          users     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model students {
@@ -45,6 +67,11 @@ model students {
   province         String?
   contact_phone    String?
   is_visible       Boolean?                  @default(true)
+  // Consentimiento expreso para datos sensibles (Ley 25.326 art. 7) y declaración
+  // de mayoría de edad / representación legal — se piden juntos porque solo aplican
+  // cuando hay disability_types cargados.
+  sensitive_data_consent_at DateTime?         @db.Timestamptz(6)
+  guardian_declaration      Boolean?          @default(false)
   created_at       DateTime?                 @default(now()) @db.Timestamptz(6)
   updated_at       DateTime?                 @default(now()) @db.Timestamptz(6)
   user             users?                    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -221,6 +248,74 @@ model audit_logs {
   ip_address  String?   @db.Inet
   created_at  DateTime? @default(now()) @db.Timestamptz(6)
   user        users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+// Mapa colaborativo de accesibilidad hiperlocal — reportes de barreras, accesos
+// positivos y servicios que la comunidad va marcando en cualquier punto del mapa.
+model accessibility_reports {
+  id            String                       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  reporter_id   String?                      @db.Uuid
+  category      String
+  subtype       String
+  description   String?
+  photo_url     String?
+  location      Unsupported("geography")
+  address       String?
+  upvotes       Int                          @default(0)
+  downvotes     Int                          @default(0)
+  is_active     Boolean?                     @default(true)
+  created_at    DateTime?                    @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime?                    @default(now()) @db.Timestamptz(6)
+  reporter      users?                       @relation(fields: [reporter_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  votes         accessibility_report_votes[]
+
+  @@index([location], map: "idx_accessibility_reports_location", type: Gist)
+  @@index([category], map: "idx_accessibility_reports_category")
+  @@index([is_active], map: "idx_accessibility_reports_active")
+}
+
+// Un voto ("sigue vigente" / "ya no es así") por usuario y reporte.
+model accessibility_report_votes {
+  id         String                @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  report_id  String                @db.Uuid
+  user_id    String                @db.Uuid
+  vote       Int
+  created_at DateTime?             @default(now()) @db.Timestamptz(6)
+  report     accessibility_reports @relation(fields: [report_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user       users                 @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([report_id, user_id])
+}
+
+// Asociaciones (ej: clubes deportivos para personas con discapacidad,
+// asociaciones civiles, grupos de apoyo) — recurso independiente de centros_terapeuticos.
+model asociaciones {
+  id                 String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  owner_user_id      String?                   @db.Uuid
+  nombre             String
+  descripcion        String?
+  disciplinas        String[]
+  tipos_discapacidad String[]
+  domicilio          String
+  barrio             String?
+  localidad          String
+  provincia          String
+  location           Unsupported("geography")?
+  telefono           String?
+  email              String?
+  whatsapp           String?
+  website            String?
+  logo_url           String?
+  fotos              String[]
+  is_verified        Boolean?                  @default(false)
+  is_active          Boolean?                  @default(true)
+  created_at         DateTime?                 @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime?                 @default(now()) @db.Timestamptz(6)
+  owner              users?                    @relation(fields: [owner_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([location], map: "idx_asociaciones_location", type: Gist)
+  @@index([disciplinas], map: "idx_asociaciones_disciplinas", type: Gin)
+  @@index([tipos_discapacidad], map: "idx_asociaciones_discapacidad", type: Gin)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.

@@ -2,12 +2,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { LogoMark } from '@/components/Logo';
 import { setAvailabilityNow, subscribeAvailability } from '@/lib/firebase-rtdb';
 import { useAndroidBackButton } from '@/hooks/useAndroidBackButton';
 import { OnboardingModal } from '@/components/OnboardingModal';
 import { AppointmentsList } from '@/components/AppointmentsList';
-
-const ADMIN_EMAILS = ['m_rasja@hotmail.com', 'mrasja@gmail.com'];
+import { ADMIN_EMAILS } from '@/lib/admin';
 
 export default function ProfesionalDashboard() {
   const router = useRouter();
@@ -16,8 +16,9 @@ export default function ProfesionalDashboard() {
 
   useAndroidBackButton();
 
-  const [hasPerfil,  setHasPerfil]  = useState<boolean | null>(null);
-  const [hasCentro,  setHasCentro]  = useState<boolean | null>(null);
+  const [hasPerfil,      setHasPerfil]      = useState<boolean | null>(null);
+  const [hasCentro,      setHasCentro]      = useState<boolean | null>(null);
+  const [hasAsociacion,  setHasAsociacion]  = useState<boolean | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const [available,  setAvailable]    = useState(false);
   const [togglingAvail, setTogglingAvail] = useState(false);
@@ -49,9 +50,12 @@ export default function ProfesionalDashboard() {
         .then(r => r.ok ? r.json() : null),
       fetch('/api/centros/me', { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.ok ? r.json() : null),
-    ]).then(([prof, centro]) => {
+      fetch('/api/asociaciones/me', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null),
+    ]).then(([prof, centro, asociacion]) => {
       setHasPerfil(!!prof);
       setHasCentro(!!centro);
+      setHasAsociacion(!!asociacion);
       if (prof) {
         setVerificationStatus(prof.verification_status ?? null);
         fetch('/api/professionals/stats', { headers: { Authorization: `Bearer ${token}` } })
@@ -94,6 +98,23 @@ export default function ProfesionalDashboard() {
           path: '/dashboard/profesional/registrar-centro',
         }
       : null,
+    hasPerfil && !hasAsociacion
+      ? {
+          icon: '🤝',
+          title: 'Registrar mi asociación',
+          desc: 'Registrá tu asociación o club deportivo en el mapa',
+          color: 'emerald',
+          path: '/dashboard/profesional/registrar-asociacion',
+        }
+      : hasPerfil && hasAsociacion
+      ? {
+          icon: '🤝',
+          title: 'Mi asociación',
+          desc: 'Administrá tu asociación o club deportivo',
+          color: 'emerald',
+          path: '/dashboard/profesional/registrar-asociacion',
+        }
+      : null,
     {
       icon: '🔍',
       title: 'Buscar centros y escuelas',
@@ -118,18 +139,20 @@ export default function ProfesionalDashboard() {
   ].filter(Boolean) as Card[];
 
   const borderMap: Record<string, string> = {
-    green:  'border-green-200  hover:border-green-400  hover:bg-green-50',
-    orange: 'border-orange-200 hover:border-orange-400 hover:bg-orange-50',
-    blue:   'border-blue-200   hover:border-blue-400   hover:bg-blue-50',
-    purple: 'border-purple-200 hover:border-purple-400 hover:bg-purple-50',
-    gray:   'border-gray-200   hover:border-gray-400   hover:bg-gray-50',
+    green:   'border-green-200   hover:border-green-400   hover:bg-green-50',
+    emerald: 'border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50',
+    orange:  'border-orange-200  hover:border-orange-400  hover:bg-orange-50',
+    blue:    'border-blue-200    hover:border-blue-400    hover:bg-blue-50',
+    purple:  'border-purple-200  hover:border-purple-400  hover:bg-purple-50',
+    gray:    'border-gray-200    hover:border-gray-400    hover:bg-gray-50',
   };
   const textMap: Record<string, string> = {
-    green:  'text-green-600',
-    orange: 'text-orange-600',
-    blue:   'text-blue-600',
-    purple: 'text-purple-600',
-    gray:   'text-gray-600',
+    green:   'text-green-600',
+    emerald: 'text-emerald-600',
+    orange:  'text-orange-600',
+    blue:    'text-blue-600',
+    purple:  'text-purple-600',
+    gray:    'text-gray-600',
   };
 
   return (
@@ -138,9 +161,9 @@ export default function ProfesionalDashboard() {
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">D</span>
+            <LogoMark className="w-5 h-5" />
           </div>
-          <span className="text-xl font-bold text-gray-900">Discapp</span>
+          <span className="text-xl font-bold text-gray-900">DiscaConecta</span>
         </div>
         <div className="flex items-center gap-3">
           {isAdmin && (

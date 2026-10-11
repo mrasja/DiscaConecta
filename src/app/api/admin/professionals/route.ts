@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyToken, isAdminUser } from '@/lib/auth-server';
+import { logAudit } from '@/lib/audit';
 
 export async function GET(request: NextRequest) {
   try {
@@ -58,6 +59,11 @@ export async function PATCH(request: NextRequest) {
       include: { user: { select: { id: true, fcm_token: true, full_name: true } } },
     });
 
+    await logAudit({
+      userId: user!.id, action: 'professional.update', entityType: 'professionals', entityId: id,
+      metadata: { is_verified, is_featured, featured_days }, request,
+    });
+
     // Send FCM notification to the professional (only on verification change)
     const fcmToken = (updated.user as any)?.fcm_token;
     if (fcmToken && is_verified !== undefined) {
@@ -69,7 +75,7 @@ export async function PATCH(request: NextRequest) {
           notification: {
             title: is_verified ? '¡Perfil verificado!' : 'Verificación no aprobada',
             body: is_verified
-              ? 'Tu perfil fue verificado por el equipo de Discapp. ¡Ya aparecés en las búsquedas!'
+              ? 'Tu perfil fue verificado por el equipo de DiscaConecta. ¡Ya aparecés en las búsquedas!'
               : 'El equipo no pudo verificar tus documentos. Por favor actualizá tu perfil.',
           },
           webpush: {

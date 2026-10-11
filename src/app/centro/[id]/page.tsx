@@ -12,8 +12,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const centro = await prisma.centros_terapeuticos.findFirst({ where: { id } });
   if (!centro) return { title: 'Centro no encontrado' };
   return {
-    title: `${centro.nombre} — Discapp`,
-    description: centro.descripcion || `${centro.tipo?.replace(/_/g, ' ')} en Discapp`,
+    title: `${centro.nombre} — DiscaConecta`,
+    description: centro.descripcion || `${centro.tipo?.replace(/_/g, ' ')} en DiscaConecta`,
     openGraph: { images: centro.logo_url ? [centro.logo_url] : [] },
   };
 }
@@ -64,7 +64,7 @@ export default async function CentroDetailPage({ params }: { params: Promise<{ i
           <ShareButton
             url={profileUrl}
             title={centro.nombre}
-            text={`Mirá ${centro.nombre} en Discapp`}
+            text={`Mirá ${centro.nombre} en DiscaConecta`}
           />
         }
       />

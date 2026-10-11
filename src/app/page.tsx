@@ -1,6 +1,7 @@
 'use client';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
+import { LogoMark } from '@/components/Logo';
 
 function dashboardPath(role?: string) {
   if (role === 'admin') return '/dashboard';
@@ -17,9 +18,9 @@ export default function LandingPage() {
       <header className="px-6 py-4 flex items-center justify-between border-b border-gray-100 sticky top-0 bg-white/90 backdrop-blur z-10">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">D</span>
+            <LogoMark className="w-5 h-5" />
           </div>
-          <span className="text-xl font-bold text-gray-900">Discapp</span>
+          <span className="text-xl font-bold text-gray-900">DiscaConecta</span>
         </div>
         <div className="flex items-center gap-3">
           {!loading && appUser ? (
@@ -150,10 +151,13 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="px-6 py-8 border-t border-gray-100 text-center text-xs text-gray-400">
-        <p>© {new Date().getFullYear()} Discapp — Conectando familias con profesionales de discapacidad en Argentina</p>
-        <div className="flex justify-center gap-6 mt-3">
+        <p>© {new Date().getFullYear()} DiscaConecta — Conectando familias con profesionales de discapacidad en Argentina</p>
+        <div className="flex justify-center gap-6 mt-3 flex-wrap">
           <Link href="/login" className="hover:text-gray-600 transition-colors">Ingresar</Link>
           <Link href="/login" className="hover:text-gray-600 transition-colors">Registrarse</Link>
+          <Link href="/terminos" className="hover:text-gray-600 transition-colors">Términos y Condiciones</Link>
+          <Link href="/privacidad" className="hover:text-gray-600 transition-colors">Política de Privacidad</Link>
+          <Link href="/eliminar-cuenta" className="hover:text-gray-600 transition-colors">Eliminar cuenta</Link>
         </div>
       </footer>
     </div>

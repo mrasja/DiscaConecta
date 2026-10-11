@@ -1,14 +1,20 @@
 'use client';
 import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ConversationList } from '@/components/ConversationList';
 import { Chat } from '@/components/Chat';
 import { useAuth } from '@/context/AuthContext';
 import { BackHeader } from '@/components/BackHeader';
 
 function MensajesContent() {
-  const { appUser } = useAuth();
+  const { appUser, loading: authLoading } = useAuth();
+  const router = useRouter();
   const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!appUser) { router.replace('/login'); return; }
+  }, [appUser, authLoading, router]);
 
   const [selectedConv, setSelectedConv] = useState<{
     id: string;
@@ -27,6 +33,14 @@ function MensajesContent() {
       });
     }
   }, [searchParams]);
+
+  if (authLoading || !appUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden">

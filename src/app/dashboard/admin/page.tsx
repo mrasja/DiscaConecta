@@ -3,25 +3,58 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { logout } from '@/lib/firebase';
-
-const ADMIN_EMAILS = ['m_rasja@hotmail.com', 'mrasja@gmail.com'];
+import { ADMIN_EMAILS } from '@/lib/admin';
 
 const TABS = [
   { id: 'metrics'       as const, label: 'Métricas' },
   { id: 'usuarios'      as const, label: 'Usuarios' },
   { id: 'profesionales' as const, label: 'Profesionales pendientes' },
   { id: 'centros'       as const, label: 'Centros pendientes' },
+  { id: 'asociaciones'  as const, label: 'Asociaciones pendientes' },
+  { id: 'reportes'      as const, label: 'Reportes de accesibilidad' },
+  { id: 'actividad'     as const, label: 'Actividad' },
 ];
+
+const ACCESS_CATEGORY_LABELS: Record<string, string> = {
+  barrera: 'Barrera', acceso_positivo: 'Acceso positivo', servicio: 'Estacionamiento / servicio',
+};
+
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  'user.update':                  'Usuario modificado',
+  'professional.update':          'Profesional modificado',
+  'centro.update':                'Centro modificado',
+  'asociacion.update':            'Asociación modificada',
+  'accessibility_report.delete':  'Reporte de accesibilidad eliminado',
+};
+
+function describeAuditMetadata(action: string, metadata: any): string {
+  if (!metadata || typeof metadata !== 'object') return '—';
+  if (action === 'user.update') {
+    const parts: string[] = [];
+    if (metadata.role !== undefined) parts.push(`rol → ${metadata.role}`);
+    if (metadata.is_active !== undefined) parts.push(metadata.is_active ? 'activado' : 'desactivado');
+    return parts.join(' · ') || '—';
+  }
+  if ('is_verified' in metadata) return metadata.is_verified ? 'aprobado ✓' : 'rechazado ✗';
+  if (action === 'accessibility_report.delete') {
+    return [ACCESS_CATEGORY_LABELS[metadata.category] ?? metadata.category, metadata.subtype]
+      .filter(Boolean).join(' · ');
+  }
+  return JSON.stringify(metadata);
+}
 
 export default function AdminDashboard() {
   const { appUser, token, loading } = useAuth();
   const router = useRouter();
 
-  const [tab, setTab] = useState<'metrics' | 'usuarios' | 'profesionales' | 'centros'>('metrics');
+  const [tab, setTab] = useState<'metrics' | 'usuarios' | 'profesionales' | 'centros' | 'asociaciones' | 'reportes' | 'actividad'>('metrics');
   const [metrics,       setMetrics]       = useState<any>(null);
   const [users,         setUsers]         = useState<any[]>([]);
   const [professionals, setProfessionals] = useState<any[]>([]);
   const [centros,       setCentros]       = useState<any[]>([]);
+  const [asociaciones,  setAsociaciones]  = useState<any[]>([]);
+  const [reports,       setReports]       = useState<any[]>([]);
+  const [auditLogs,     setAuditLogs]     = useState<any[]>([]);
   const [loadingData, setLoadingData]     = useState(false);
   const [msg, setMsg]                     = useState('');
 
@@ -55,13 +88,53 @@ export default function AdminDashboard() {
         .then(r => r.ok ? r.json() : [])
         .then(setProfessionals)
         .finally(() => setLoadingData(false));
-    } else {
+    } else if (tab === 'centros') {
       fetch('/api/admin/centros?pending=true', { headers })
         .then(r => r.ok ? r.json() : [])
         .then(setCentros)
         .finally(() => setLoadingData(false));
+    } else if (tab === 'asociaciones') {
+      fetch('/api/admin/asociaciones?pending=true', { headers })
+        .then(r => r.ok ? r.json() : [])
+        .then(setAsociaciones)
+        .finally(() => setLoadingData(false));
+    } else if (tab === 'reportes') {
+      fetch('/api/admin/accessibility-reports', { headers })
+        .then(r => r.ok ? r.json() : [])
+        .then(setReports)
+        .finally(() => setLoadingData(false));
+    } else {
+      fetch('/api/admin/audit-logs', { headers })
+        .then(r => r.ok ? r.json() : [])
+        .then(setAuditLogs)
+        .finally(() => setLoadingData(false));
     }
   }, [tab, token, isAdmin]);
+
+  const verifyAsociacion = async (id: string, verified: boolean) => {
+    if (!token) return;
+    const res = await fetch('/api/admin/asociaciones', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ id, is_verified: verified }),
+    });
+    if (res.ok) {
+      setAsociaciones(prev => prev.filter(a => a.id !== id));
+      setMsg(verified ? '✓ Asociación verificada' : '✗ Asociación rechazada');
+    }
+  };
+
+  const deleteReport = async (id: string) => {
+    if (!token) return;
+    const res = await fetch(`/api/accessibility-reports/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      setReports(prev => prev.filter(r => r.id !== id));
+      setMsg('✓ Reporte eliminado');
+    }
+  };
 
   const verifyCentro = async (id: string, verified: boolean) => {
     if (!token) return;
@@ -124,7 +197,7 @@ export default function AdminDashboard() {
             </div>
             <div>
               <span className="text-base font-bold text-gray-900">Panel Admin</span>
-              <span className="ml-2 text-xs text-gray-400">Discapp</span>
+              <span className="ml-2 text-xs text-gray-400">DiscaConecta</span>
             </div>
           </div>
 
@@ -148,8 +221,11 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div role="tablist" aria-label="Secciones del panel admin" className="flex gap-1 mt-3 bg-gray-100 rounded-xl p-1">
+        {/* Tabs — scroll horizontal en vez de flex-1: con 6 pestañas y etiquetas largas
+            ("Reportes de accesibilidad", "Profesionales pendientes"), forzarlas a ancho
+            igual las hacía desbordar y superponerse. */}
+        <div role="tablist" aria-label="Secciones del panel admin"
+          className="flex gap-1 mt-3 bg-gray-100 rounded-xl p-1 overflow-x-auto">
           {TABS.map(t => {
             const isActive = tab === t.id;
             return (
@@ -161,7 +237,7 @@ export default function AdminDashboard() {
                 id={`tab-${t.id}`}
                 onClick={() => setTab(t.id)}
                 style={isActive ? { backgroundColor: '#dc2626', color: 'white', fontWeight: 600 } : {}}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex-1 text-center
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex-shrink-0 whitespace-nowrap
                   ${isActive ? '' : 'text-gray-500 hover:bg-white hover:text-gray-800'}`}>
                 {t.label}
               </button>
@@ -408,6 +484,156 @@ export default function AdminDashboard() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* ── ASOCIACIONES PENDIENTES ─────────────── */}
+        {!loadingData && tab === 'asociaciones' && (
+          <div role="tabpanel" id="panel-asociaciones" aria-labelledby="tab-asociaciones" className="space-y-3">
+            {asociaciones.length === 0 && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm text-center py-16">
+                <p className="text-4xl mb-3">✓</p>
+                <p className="font-semibold text-gray-700">Todo al día</p>
+                <p className="text-sm text-gray-400 mt-1">No hay asociaciones pendientes de verificación</p>
+              </div>
+            )}
+            {asociaciones.map((a: any) => (
+              <div key={a.id}
+                className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4">
+                <div className="w-11 h-11 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0 text-xl">
+                  🤝
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900">{a.nombre}</p>
+                  <p className="text-xs text-gray-400">{a.localidad}, {a.provincia}</p>
+                  {a.disciplinas?.length > 0 && (
+                    <p className="text-xs text-emerald-600 mt-0.5">{a.disciplinas.join(', ')}</p>
+                  )}
+                  {a.owner && (
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Registrado por: {a.owner.full_name} · {a.owner.email}
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button onClick={() => verifyAsociacion(a.id, true)}
+                    className="px-4 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition-colors">
+                    Aprobar
+                  </button>
+                  <button onClick={() => verifyAsociacion(a.id, false)}
+                    className="px-4 py-2 bg-gray-100 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-colors">
+                    Rechazar
+                  </button>
+                  <a href={`/asociacion/${a.id}`} target="_blank" rel="noopener noreferrer"
+                    className="px-3 py-2 bg-indigo-50 text-indigo-600 text-xs font-semibold rounded-lg hover:bg-indigo-100 transition-colors">
+                    Ver →
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── REPORTES DE ACCESIBILIDAD ───────────── */}
+        {!loadingData && tab === 'reportes' && (
+          <div role="tabpanel" id="panel-reportes" aria-labelledby="tab-reportes" className="space-y-3">
+            {reports.length === 0 && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm text-center py-16">
+                <p className="text-4xl mb-3">♿</p>
+                <p className="font-semibold text-gray-700">Sin reportes todavía</p>
+                <p className="text-sm text-gray-400 mt-1">Los reportes de la comunidad van a aparecer acá</p>
+              </div>
+            )}
+            {reports.map((r: any) => (
+              <div key={r.id}
+                className={`bg-white rounded-2xl p-5 border shadow-sm flex items-start gap-4
+                  ${r.is_active === false ? 'border-red-200 bg-red-50/30' : 'border-gray-100'}`}>
+                <div className="w-11 h-11 rounded-lg bg-cyan-100 flex items-center justify-center flex-shrink-0 text-xl">
+                  ♿
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-gray-900">{ACCESS_CATEGORY_LABELS[r.category] ?? r.category}</p>
+                    {r.is_active === false && (
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                        Oculto por la comunidad
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-cyan-700 mt-0.5">{r.subtype?.replace(/_/g, ' ')}</p>
+                  {r.description && <p className="text-sm text-gray-600 mt-1">{r.description}</p>}
+                  {r.address && <p className="text-xs text-gray-400 mt-1">📍 {r.address}</p>}
+                  <p className="text-xs text-gray-400 mt-1">
+                    👍 {r.upvotes} · 👎 {r.downvotes}
+                    {r.reporter_name && <span> · Reportado por: {r.reporter_name} · {r.reporter_email}</span>}
+                  </p>
+                  {r.photo_url && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={r.photo_url} alt="" className="mt-2 w-32 h-24 object-cover rounded-lg" />
+                  )}
+                </div>
+                <button onClick={() => deleteReport(r.id)}
+                  className="px-3 py-2 bg-red-50 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-100 transition-colors flex-shrink-0">
+                  Eliminar
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── ACTIVIDAD (audit log) ───────────────── */}
+        {!loadingData && tab === 'actividad' && (
+          <div role="tabpanel" id="panel-actividad" aria-labelledby="tab-actividad"
+            className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">Registro de actividad admin ({auditLogs.length})</h3>
+              <p className="text-xs text-gray-400">Últimas {auditLogs.length} acciones sensibles</p>
+            </div>
+            {auditLogs.length === 0 ? (
+              <div className="text-center py-16">
+                <p className="text-4xl mb-3">📋</p>
+                <p className="font-semibold text-gray-700">Sin actividad registrada todavía</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  Verificaciones, cambios de usuario y borrados de reportes van a aparecer acá
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 text-left">
+                      <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Fecha</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Admin</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Acción</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Detalle</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">IP</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {auditLogs.map((log: any) => (
+                      <tr key={log.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-5 py-3.5 text-gray-500 text-xs whitespace-nowrap">
+                          {new Date(log.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}
+                        </td>
+                        <td className="px-5 py-3.5 text-gray-700 text-xs">
+                          {log.user?.full_name ?? '—'}
+                          {log.user?.email && <span className="block text-gray-400">{log.user.email}</span>}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
+                            {AUDIT_ACTION_LABELS[log.action] ?? log.action}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3.5 text-gray-600 text-xs">
+                          {describeAuditMetadata(log.action, log.metadata)}
+                        </td>
+                        <td className="px-5 py-3.5 text-gray-400 text-xs whitespace-nowrap">{log.ip_address ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
