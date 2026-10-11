@@ -1,45 +1,26 @@
 {
   "project_info": {
-    "project_number": "685684772829",
-    "firebase_url": "https://discapp-7e0b8-default-rtdb.firebaseio.com",
-    "project_id": "discapp-7e0b8",
-    "storage_bucket": "discapp-7e0b8.firebasestorage.app"
+    "project_number": "448345054092",
+    "project_id": "discaconecta",
+    "storage_bucket": "discaconecta.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:685684772829:android:3584300908ff467195f034",
+        "mobilesdk_app_id": "1:448345054092:android:866c2a9306ee89118214a9",
         "android_client_info": {
-          "package_name": "com.discapp.app"
+          "package_name": "com.discaconecta.app"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "685684772829-s6gcape18fo8ea5b023k70evdk71ruea.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.discapp.app",
-            "certificate_hash": "1ea42417611de3f7bd6a07dbd6e8fc934127460c"
-          }
-        },
-        {
-          "client_id": "685684772829-j96a0shkng7mrfun7ej1b9k31j3smmf2.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDMnlOGBHFj1rjq1alh6Xswi0hEe44Xi0I"
+          "current_key": "AIzaSyDNLHp0Cc3aUt6fftvNyUtkdiQg3E2xZhw"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "685684772829-j96a0shkng7mrfun7ej1b9k31j3smmf2.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
+          "other_platform_oauth_client": []
         }
       }
     }
